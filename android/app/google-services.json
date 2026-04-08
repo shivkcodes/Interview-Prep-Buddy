@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "808331321792",
+    "project_id": "interview-prep-buddy-1e370",
+    "storage_bucket": "interview-prep-buddy-1e370.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:808331321792:android:5a68de530fb00d2bca2825",
+        "android_client_info": {
+          "package_name": "com.example.interview_prep_buddy"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "808331321792-de7uqkendjb3vp1l0hdnr2gi7ja2n5cv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.interview_prep_buddy",
+            "certificate_hash": "78882268ef38bb00ffca2e862d9c6c0fccdb4da7"
+          }
+        },
+        {
+          "client_id": "808331321792-m83hgrihoris9lcejipj3a7diel7ndic.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDBhPEiOSLCISTbB1Wx9Ur7V0dQbuZfXiU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "808331321792-m83hgrihoris9lcejipj3a7diel7ndic.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "808331321792-pgaq4p3hm5rliurk7oq6np6l5kat22sb.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.interviewPrepBuddy"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

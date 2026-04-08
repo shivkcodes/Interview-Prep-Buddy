@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.example.interview_prep_buddy",
+      "sha256_cert_fingerprints": [
+        "E8:49:AF:A6:AE:F6:99:C4:E5:BD:50:9D:32:3C:25:39:7A:2F:CE:51:E6:9E:92:31:C8:F2:96:ED:C3:22:F0:26"
+      ]
+    }
+  }
+]

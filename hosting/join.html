@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Join Interview Prep Buddy</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f7fb;
+      padding: 24px;
+      color: #1c2434;
+    }
+    .card {
+      max-width: 420px;
+      margin: 40px auto;
+      background: white;
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    }
+    .btn {
+      display: block;
+      width: 100%;
+      margin-top: 16px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      text-align: center;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    .secondary {
+      background: #2346a0;
+      color: white;
+    }
+    .message {
+      margin-top: 10px;
+      font-size: 15px;
+      color: #667085;
+      line-height: 1.5;
+    }
+    .hint {
+      margin-top: 16px;
+      font-size: 14px;
+      color: #667085;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Join Interview Prep Buddy</h2>
+    <p id="inviteText">Loading invite...</p>
+    <p class="message">The Application is not installed on your device.</p>
+    <a
+      id="downloadBtn"
+      class="btn secondary"
+      href="https://drive.google.com/uc?export=download&id=141qeO6mDiZ0eWukRJOUIrq1kH29hGouf">
+      Download App
+    </a>
+    <p class="hint">
+      App install karne ke baad isi invite link ko dubara open karein.
+    </p>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code') || '';
+    document.getElementById('inviteText').innerText = 'Invite Code: ' + code;
+  </script>
+</body>
+</html>

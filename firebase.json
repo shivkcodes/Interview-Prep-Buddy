@@ -1,0 +1,39 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "interview-prep-buddy-1e370",
+          "appId": "1:808331321792:android:5a68de530fb00d2bca2825",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "interview-prep-buddy-1e370",
+          "configurations": {
+            "android": "1:808331321792:android:5a68de530fb00d2bca2825",
+            "ios": "1:808331321792:ios:4facf833f5ec5d15ca2825",
+            "macos": "1:808331321792:ios:4facf833f5ec5d15ca2825",
+            "web": "1:808331321792:web:7c7bd9ccce558f4eca2825",
+            "windows": "1:808331321792:web:a5a4ef27510eb3d4ca2825"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "hosting",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/join",
+        "destination": "/join.html"
+      }
+    ]
+  }
+}
