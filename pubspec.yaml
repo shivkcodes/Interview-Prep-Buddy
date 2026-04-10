@@ -33,3 +33,11 @@ dependencies:
   share_plus: ^10.1.4
   firebase_auth: ^5.7.0
   google_sign_in: ^7.2.0
+  speech_to_text: ^7.3.0
+  geolocator: ^14.0.2
+  geocoding: ^4.0.0
+  file_picker: ^8.1.2
+  firebase_storage: ^12.4.10
+  googleapis: ^16.0.0
+  http: ^1.5.0
+  url_launcher: ^6.3.1

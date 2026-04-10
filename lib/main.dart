@@ -9,6 +9,10 @@ import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'screens/login_screen.dart';
 import 'screens/add_question_screen.dart';
+import 'screens/saved_answers_screen.dart';
+import 'package:speech_to_text/speech_to_text.dart';
+import 'package:speech_to_text/speech_recognition_result.dart';
+import 'screens/profile_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -120,7 +124,7 @@ class _MainScreenState extends State<MainScreen> {
   void addAttempt(Attempt attempt) {
     setState(() {
       attempts.insert(0, attempt);
-      selectedIndex = 3;
+      selectedIndex = 4;
     });
   }
 
@@ -174,8 +178,10 @@ class _MainScreenState extends State<MainScreen> {
             questions: questions,
             onSubmitAttempt: addAttempt,
           ),
-          PerformanceScreen(attempts: attempts),
+          const SavedAnswersScreen(),
+          const PerformanceScreen(),
           const PeerPracticeScreen(),
+          const ProfileScreen(),
         ];
 
         return Scaffold(
@@ -218,6 +224,11 @@ class _MainScreenState extends State<MainScreen> {
                 label: "Mock",
               ),
               NavigationDestination(
+                icon: Icon(Icons.bookmark_border),
+                selectedIcon: Icon(Icons.bookmark),
+                label: "Saved",
+              ),
+              NavigationDestination(
                 icon: Icon(Icons.bar_chart_outlined),
                 selectedIcon: Icon(Icons.bar_chart),
                 label: "Analysis",
@@ -226,6 +237,11 @@ class _MainScreenState extends State<MainScreen> {
                 icon: Icon(Icons.people_outline),
                 selectedIcon: Icon(Icons.people),
                 label: "Peers",
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.person_outline),
+                selectedIcon: Icon(Icons.person),
+                label: "Profile",
               ),
             ],
           ),
@@ -661,6 +677,86 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
   int selectedQuestionIndex = 0;
   final TextEditingController answerController = TextEditingController();
 
+  final SpeechToText speechToText = SpeechToText();
+  bool speechEnabled = false;
+  bool isListening = false;
+  double speechConfidence = 0.0;
+  String speechStatus = 'Mic ready';
+
+  @override
+  void initState() {
+    super.initState();
+    initSpeech();
+  }
+
+  Future<void> initSpeech() async {
+    speechEnabled = await speechToText.initialize(
+      onStatus: (status) {
+        if (!mounted) return;
+        setState(() {
+          speechStatus = status;
+          isListening = speechToText.isListening;
+        });
+      },
+      onError: (error) {
+        if (!mounted) return;
+        setState(() {
+          speechStatus = error.errorMsg;
+          isListening = false;
+        });
+      },
+    );
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void startListening() async {
+    if (!speechEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Speech recognition available nahi hai')),
+      );
+      return;
+    }
+
+    await speechToText.listen(
+      partialResults: true,
+      onResult: onSpeechResult,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      isListening = true;
+      speechStatus = 'Listening...';
+    });
+  }
+
+  void stopListening() async {
+    await speechToText.stop();
+
+    if (!mounted) return;
+
+    setState(() {
+      isListening = false;
+      speechStatus = 'Stopped';
+    });
+  }
+
+  void onSpeechResult(SpeechRecognitionResult result) {
+    setState(() {
+      answerController.text = result.recognizedWords;
+      answerController.selection = TextSelection.fromPosition(
+        TextPosition(offset: answerController.text.length),
+      );
+
+      if (result.hasConfidenceRating && result.confidence > 0) {
+        speechConfidence = result.confidence;
+      }
+    });
+  }
+
   Attempt analyzeAnswer({
     required String question,
     required String answer,
@@ -680,10 +776,12 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
     }
 
     final double lengthScore =
-    wordCount >= 30 ? 40.0 : (wordCount / 30) * 40.0;
+        wordCount >= 30 ? 40.0 : (wordCount / 30) * 40.0;
+
     final double keywordScore = keywords.isEmpty
-      ? 0.0
-      : (matchedKeywords / keywords.length) * 60.0;
+        ? 0.0
+        : (matchedKeywords / keywords.length) * 60.0;
+
     final double finalScore = (lengthScore + keywordScore).toDouble();
 
     String weakArea;
@@ -708,13 +806,37 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
     );
   }
 
-  void submitAnswer() {
+  Future<void> saveAnswerToFirestore({
+    required Map<String, dynamic> selectedQuestion,
+    required Attempt attempt,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    await FirebaseFirestore.instance.collection('saved_answers').add({
+      'userId': user?.uid,
+      'userEmail': user?.email,
+      'question': selectedQuestion['question'],
+      'type': selectedQuestion['type'],
+      'keywords': List<String>.from(selectedQuestion['keywords']),
+      'answer': attempt.answer,
+      'score': attempt.score,
+      'wordCount': attempt.wordCount,
+      'matchedKeywords': attempt.matchedKeywords,
+      'totalKeywords': attempt.totalKeywords,
+      'weakArea': attempt.weakArea,
+      'speechConfidence': speechConfidence,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> submitAnswer() async {
     if (widget.questions.isEmpty) return;
 
     final answer = answerController.text.trim();
     if (answer.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please type your answer first.")),
+        const SnackBar(content: Text("Please type or speak your answer first.")),
       );
       return;
     }
@@ -726,11 +848,24 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
       keywords: List<String>.from(selected["keywords"]),
     );
 
+    await saveAnswerToFirestore(
+      selectedQuestion: selected,
+      attempt: attempt,
+    );
+
     widget.onSubmitAttempt(attempt);
+
     answerController.clear();
 
+    if (!mounted) return;
+
+    setState(() {
+      speechConfidence = 0.0;
+      speechStatus = 'Mic ready';
+    });
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Answer analyzed successfully")),
+      const SnackBar(content: Text("Answer analyzed and saved successfully")),
     );
   }
 
@@ -746,6 +881,7 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
   @override
   void dispose() {
     answerController.dispose();
+    speechToText.stop();
     super.dispose();
   }
 
@@ -774,7 +910,7 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
           ),
           const SizedBox(height: 6),
           const Text(
-            "Question choose karo aur apna real answer submit karo",
+            "Question choose karo, answer type karo ya mic se bolo",
             style: TextStyle(color: Color(0xFF667085)),
           ),
           const SizedBox(height: 18),
@@ -850,7 +986,7 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
             controller: answerController,
             maxLines: 8,
             decoration: InputDecoration(
-              hintText: "Type your answer here...",
+              hintText: "Type your answer here or use mic...",
               filled: true,
               fillColor: Colors.white,
               contentPadding: const EdgeInsets.all(18),
@@ -858,6 +994,52 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
                 borderRadius: BorderRadius.circular(20),
                 borderSide: BorderSide.none,
               ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: isListening ? stopListening : startListening,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        isListening ? Colors.red : const Color(0xFF2346A0),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  icon: Icon(isListening ? Icons.stop : Icons.mic),
+                  label: Text(isListening ? "Stop Mic" : "Start Mic"),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Mic Status: $speechStatus",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1C2434),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "Voice Accuracy: ${(speechConfidence * 100).toStringAsFixed(1)}%",
+                  style: const TextStyle(color: Color(0xFF667085)),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 18),
@@ -873,7 +1055,7 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
                 ),
               ),
               child: const Text(
-                "Submit Answer",
+                "Analyze & Save Answer",
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
             ),
@@ -885,120 +1067,304 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
 }
 
 class PerformanceScreen extends StatelessWidget {
-  final List<Attempt> attempts;
-
-  const PerformanceScreen({super.key, required this.attempts});
-
-  double getAverageScore() {
-    if (attempts.isEmpty) return 0;
-    final total = attempts.fold<double>(0, (sum, item) => sum + item.score);
-    return total / attempts.length;
-  }
-
-  String getTopWeakArea() {
-    if (attempts.isEmpty) return "No data";
-    final filtered = attempts.where((a) => a.weakArea != "Good performance").toList();
-    if (filtered.isEmpty) return "None";
-
-    final counts = <String, int>{};
-    for (final item in filtered) {
-      counts[item.weakArea] = (counts[item.weakArea] ?? 0) + 1;
-    }
-
-    String top = filtered.first.weakArea;
-    int maxCount = 0;
-
-    counts.forEach((key, value) {
-      if (value > maxCount) {
-        maxCount = value;
-        top = key;
-      }
-    });
-
-    return top;
-  }
+  const PerformanceScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final bestScore = attempts.isEmpty
-        ? 0.0
-        : attempts.map((e) => e.score).reduce((a, b) => a > b ? a : b);
+    final user = FirebaseAuth.instance.currentUser;
 
     return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
-        children: [
-          const Text(
-            "Performance Analysis",
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            "Real attempts ke basis par aapki performance summary",
-            style: TextStyle(color: Color(0xFF667085)),
-          ),
-          const SizedBox(height: 18),
-          InfoCard(title: "Total Attempts", value: "${attempts.length}", color: const Color(0xFF335CFF)),
-          const SizedBox(height: 12),
-          InfoCard(title: "Average Score", value: "${getAverageScore().toStringAsFixed(1)}%", color: const Color(0xFFFF8A3D)),
-          const SizedBox(height: 12),
-          InfoCard(title: "Best Score", value: "${bestScore.toStringAsFixed(1)}%", color: const Color(0xFF15A37D)),
-          const SizedBox(height: 12),
-          InfoCard(title: "Top Weak Area", value: getTopWeakArea(), color: const Color(0xFFE4583E)),
-          const SizedBox(height: 18),
-          if (attempts.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF4D6),
-                borderRadius: BorderRadius.circular(18),
+      child: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('saved_answers')
+            .where('userId', isEqualTo: user?.uid)
+            .orderBy('updatedAt', descending: true)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                'Performance data load nahi hui: ${snapshot.error}',
+                textAlign: TextAlign.center,
               ),
-              child: const Text(
-                "Abhi tak koi attempt nahi hua. Mock Interview screen me jaakar answer submit karo.",
-                style: TextStyle(fontSize: 15),
+            );
+          }
+
+          final docs = snapshot.data?.docs ?? [];
+
+          if (docs.isEmpty) {
+            return const Center(
+              child: Text(
+                'Abhi tak koi saved answer nahi hai.\nMock screen me answer submit karo.',
+                textAlign: TextAlign.center,
               ),
-            ),
-          if (attempts.isNotEmpty)
-            ...attempts.map(
-              (attempt) => Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x12000000),
-                      blurRadius: 12,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    attempt.question,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      "Words: ${attempt.wordCount} | Keywords: ${attempt.matchedKeywords}/${attempt.totalKeywords}",
-                      style: const TextStyle(color: Color(0xFF667085)),
-                    ),
-                  ),
-                  trailing: Text(
-                    "${attempt.score.toStringAsFixed(1)}%",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF2346A0),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
+            );
+          }
+
+          final savedAnswers = docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return {
+              'id': doc.id,
+              'question': data['question'] ?? '',
+              'answer': data['answer'] ?? '',
+              'type': data['type'] ?? 'General',
+              'score': (data['score'] ?? 0).toDouble(),
+              'wordCount': data['wordCount'] ?? 0,
+              'matchedKeywords': data['matchedKeywords'] ?? 0,
+              'totalKeywords': data['totalKeywords'] ?? 0,
+              'weakArea': data['weakArea'] ?? 'No data',
+              'speechConfidence': (data['speechConfidence'] ?? 0).toDouble(),
+            };
+          }).toList();
+
+          final totalAttempts = savedAnswers.length;
+
+          final totalScore = savedAnswers.fold<double>(
+            0,
+            (sum, item) => sum + (item['score'] as double),
+          );
+
+          final averageScore = totalScore / totalAttempts;
+
+          final bestScore = savedAnswers
+              .map((e) => e['score'] as double)
+              .reduce((a, b) => a > b ? a : b);
+
+          final weakAreaCount = <String, int>{};
+          for (final item in savedAnswers) {
+            final weakArea = item['weakArea'] as String;
+            if (weakArea != 'Good performance') {
+              weakAreaCount[weakArea] = (weakAreaCount[weakArea] ?? 0) + 1;
+            }
+          }
+
+          String topWeakArea = 'None';
+          int maxCount = 0;
+          weakAreaCount.forEach((key, value) {
+            if (value > maxCount) {
+              maxCount = value;
+              topWeakArea = key;
+            }
+          });
+
+          return _PerformanceContent(
+            savedAnswers: savedAnswers,
+            totalAttempts: totalAttempts,
+            averageScore: averageScore,
+            bestScore: bestScore,
+            topWeakArea: topWeakArea,
+          );
+        },
       ),
+    );
+  }
+}
+
+class _PerformanceContent extends StatefulWidget {
+  final List<Map<String, dynamic>> savedAnswers;
+  final int totalAttempts;
+  final double averageScore;
+  final double bestScore;
+  final String topWeakArea;
+
+  const _PerformanceContent({
+    required this.savedAnswers,
+    required this.totalAttempts,
+    required this.averageScore,
+    required this.bestScore,
+    required this.topWeakArea,
+  });
+
+  @override
+  State<_PerformanceContent> createState() => _PerformanceContentState();
+}
+
+class _PerformanceContentState extends State<_PerformanceContent> {
+  int selectedAnswerIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    if (selectedAnswerIndex >= widget.savedAnswers.length) {
+      selectedAnswerIndex = 0;
+    }
+
+    final selected = widget.savedAnswers[selectedAnswerIndex];
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+      children: [
+        const Text(
+          "Performance Analysis",
+          style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          "Top par overall report aur neeche selected question ki individual report",
+          style: TextStyle(color: Color(0xFF667085)),
+        ),
+        const SizedBox(height: 18),
+        const Text(
+          "Overall Performance",
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF1C2434),
+          ),
+        ),
+        const SizedBox(height: 14),
+        InfoCard(
+          title: "Total Saved Answers",
+          value: "${widget.totalAttempts}",
+          color: const Color(0xFF335CFF),
+        ),
+        const SizedBox(height: 12),
+        InfoCard(
+          title: "Average Score",
+          value: "${widget.averageScore.toStringAsFixed(1)}%",
+          color: const Color(0xFFFF8A3D),
+        ),
+        const SizedBox(height: 12),
+        InfoCard(
+          title: "Best Score",
+          value: "${widget.bestScore.toStringAsFixed(1)}%",
+          color: const Color(0xFF15A37D),
+        ),
+        const SizedBox(height: 12),
+        InfoCard(
+          title: "Top Weak Area",
+          value: widget.topWeakArea,
+          color: const Color(0xFFE4583E),
+        ),
+        const SizedBox(height: 24),
+        const Text(
+          "Individual Question Report",
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF1C2434),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x12000000),
+                blurRadius: 12,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: DropdownButtonFormField<int>(
+            value: selectedAnswerIndex,
+            decoration: const InputDecoration(
+              labelText: "Select Saved Answer",
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(16)),
+              ),
+            ),
+            items: List.generate(
+              widget.savedAnswers.length,
+              (index) => DropdownMenuItem(
+                value: index,
+                child: Text(widget.savedAnswers[index]['question']),
+              ),
+            ),
+            onChanged: (value) {
+              setState(() {
+                selectedAnswerIndex = value!;
+              });
+            },
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x12000000),
+                blurRadius: 12,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                selected['question'],
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1C2434),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Type: ${selected['type']}",
+                style: const TextStyle(color: Color(0xFF667085)),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                "Your Answer",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                selected['answer'],
+                style: const TextStyle(
+                  fontSize: 14.5,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 18),
+              InfoCard(
+                title: "Score",
+                value: "${(selected['score'] as double).toStringAsFixed(1)}%",
+                color: const Color(0xFF2346A0),
+              ),
+              const SizedBox(height: 12),
+              InfoCard(
+                title: "Word Count",
+                value: "${selected['wordCount']}",
+                color: const Color(0xFF8B5CF6),
+              ),
+              const SizedBox(height: 12),
+              InfoCard(
+                title: "Keyword Match",
+                value:
+                    "${selected['matchedKeywords']}/${selected['totalKeywords']}",
+                color: const Color(0xFF10B981),
+              ),
+              const SizedBox(height: 12),
+              InfoCard(
+                title: "Weak Area",
+                value: selected['weakArea'],
+                color: const Color(0xFFF97316),
+              ),
+              const SizedBox(height: 12),
+              InfoCard(
+                title: "Voice Accuracy",
+                value: "${((selected['speechConfidence'] as double) * 100).toStringAsFixed(1)}%",
+                color: const Color(0xFF06B6D4),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
