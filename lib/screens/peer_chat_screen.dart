@@ -37,17 +37,22 @@ class _PeerChatScreenState extends State<PeerChatScreen> {
         sending = true;
       });
 
-      final chatRef =
-          FirebaseFirestore.instance.collection('peer_chats').doc(chatId);
+      final chatRef = FirebaseFirestore.instance
+          .collection('peer_chats')
+          .doc(chatId);
 
       await chatRef.set({
         'participants': [currentUser!.uid, widget.peerUserId],
         'participantNames': {
-          currentUser!.uid: currentUser!.displayName ?? currentUser!.email ?? 'User',
+          currentUser!.uid:
+              currentUser!.displayName ?? currentUser!.email ?? 'User',
           widget.peerUserId: widget.peerName,
         },
         'lastMessage': text,
+        'lastMessageSenderId': currentUser!.uid,
         'lastMessageAt': FieldValue.serverTimestamp(),
+        'unreadCounts.${widget.peerUserId}': FieldValue.increment(1),
+        'unreadCounts.${currentUser!.uid}': 0,
       }, SetOptions(merge: true));
 
       await chatRef.collection('messages').add({
@@ -59,9 +64,9 @@ class _PeerChatScreenState extends State<PeerChatScreen> {
 
       messageController.clear();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Message send nahi hua: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Message send nahi hua: $e')));
     } finally {
       if (mounted) {
         setState(() {
@@ -79,6 +84,24 @@ class _PeerChatScreenState extends State<PeerChatScreen> {
     return '$hour:$minute';
   }
 
+  Future<void> markChatAsRead() async {
+    if (currentUser == null) return;
+
+    final chatId = buildChatId(currentUser!.uid, widget.peerUserId);
+
+    await FirebaseFirestore.instance.collection('peer_chats').doc(chatId).set({
+      'unreadCounts.${currentUser!.uid}': 0,
+    }, SetOptions(merge: true));
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      markChatAsRead();
+    });
+  }
+
   @override
   void dispose() {
     messageController.dispose();
@@ -88,17 +111,13 @@ class _PeerChatScreenState extends State<PeerChatScreen> {
   @override
   Widget build(BuildContext context) {
     if (currentUser == null) {
-      return const Scaffold(
-        body: Center(child: Text('Please login first')),
-      );
+      return const Scaffold(body: Center(child: Text('Please login first')));
     }
 
     final chatId = buildChatId(currentUser!.uid, widget.peerUserId);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.peerName),
-      ),
+      appBar: AppBar(title: Text(widget.peerName)),
       body: Column(
         children: [
           Expanded(
@@ -115,6 +134,9 @@ class _PeerChatScreenState extends State<PeerChatScreen> {
                 }
 
                 final docs = snapshot.data?.docs ?? [];
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  markChatAsRead();
+                });
 
                 if (docs.isEmpty) {
                   return const Center(
@@ -136,8 +158,9 @@ class _PeerChatScreenState extends State<PeerChatScreen> {
                     final createdAt = data['createdAt'] as Timestamp?;
 
                     return Align(
-                      alignment:
-                          isMe ? Alignment.centerRight : Alignment.centerLeft,
+                      alignment: isMe
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
                       child: Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.all(14),
@@ -145,9 +168,7 @@ class _PeerChatScreenState extends State<PeerChatScreen> {
                           maxWidth: MediaQuery.of(context).size.width * 0.75,
                         ),
                         decoration: BoxDecoration(
-                          color: isMe
-                              ? const Color(0xFF2346A0)
-                              : Colors.white,
+                          color: isMe ? const Color(0xFF2346A0) : Colors.white,
                           borderRadius: BorderRadius.circular(18),
                           boxShadow: const [
                             BoxShadow(
@@ -177,7 +198,9 @@ class _PeerChatScreenState extends State<PeerChatScreen> {
                               style: TextStyle(
                                 fontSize: 15,
                                 height: 1.5,
-                                color: isMe ? Colors.white : const Color(0xFF1C2434),
+                                color: isMe
+                                    ? Colors.white
+                                    : const Color(0xFF1C2434),
                               ),
                             ),
                             const SizedBox(height: 8),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../app_settings.dart';
+import '../app_text.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -29,18 +30,28 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('App Settings'),
+        title: Text(
+          AppText.value(
+            en: 'App Settings',
+            hi: 'ऐप सेटिंग्स',
+            mix: 'App Settings',
+          ),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
         children: [
-          const Text(
-            'Settings',
+          Text(
+            AppText.value(en: 'Settings', hi: 'सेटिंग्स', mix: 'Settings'),
             style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),
-          const Text(
-            'Customize the app experience the way you prefer.',
+          Text(
+            AppText.value(
+              en: 'Customize the app experience the way you prefer.',
+              hi: 'अपनी पसंद के अनुसार ऐप अनुभव को बदलें।',
+              mix: 'App ko apni preference ke according customize karo.',
+            ),
             style: TextStyle(color: Color(0xFF667085)),
           ),
           const SizedBox(height: 20),
@@ -64,8 +75,8 @@ class SettingsScreen extends StatelessWidget {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Theme',
+                    Text(
+                      AppText.value(en: 'Theme', hi: 'थीम', mix: 'Theme'),
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
@@ -121,8 +132,12 @@ class SettingsScreen extends StatelessWidget {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Font Size',
+                    Text(
+                      AppText.value(
+                        en: 'Font Size',
+                        hi: 'फ़ॉन्ट साइज़',
+                        mix: 'Font Size',
+                      ),
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
@@ -146,11 +161,7 @@ class SettingsScreen extends StatelessWidget {
                     ),
                     const Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Small'),
-                        Text('Medium'),
-                        Text('Large'),
-                      ],
+                      children: [Text('Small'), Text('Medium'), Text('Large')],
                     ),
                   ],
                 );
@@ -160,73 +171,68 @@ class SettingsScreen extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-Container(
-  padding: const EdgeInsets.all(16),
-  decoration: BoxDecoration(
-    color: Colors.white,
-    borderRadius: BorderRadius.circular(20),
-    boxShadow: const [
-      BoxShadow(
-        color: Color(0x12000000),
-        blurRadius: 12,
-        offset: Offset(0, 4),
-      ),
-    ],
-  ),
-  child: ValueListenableBuilder<String>(
-    valueListenable: AppSettings.languageCodeNotifier,
-    builder: (context, languageCode, _) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Language',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x12000000),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ValueListenableBuilder<String>(
+              valueListenable: AppSettings.languageCodeNotifier,
+              builder: (context, languageCode, _) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      AppText.value(
+                        en: 'Language',
+                        hi: 'भाषा',
+                        mix: 'Language',
+                      ),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      value: languageCode,
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: const Color(0xFFF4F7FB),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'en', child: Text('English')),
+                        DropdownMenuItem(value: 'hi', child: Text('Hindi')),
+                        DropdownMenuItem(value: 'mix', child: Text('Hinglish')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          AppSettings.setLanguageCode(value);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Current: ${_languageLabel(languageCode)}',
+                      style: const TextStyle(color: Color(0xFF667085)),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
-          const SizedBox(height: 10),
-          DropdownButtonFormField<String>(
-            value: languageCode,
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: const Color(0xFFF4F7FB),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
-              ),
-            ),
-            items: const [
-              DropdownMenuItem(
-                value: 'en',
-                child: Text('English'),
-              ),
-              DropdownMenuItem(
-                value: 'hi',
-                child: Text('Hindi'),
-              ),
-              DropdownMenuItem(
-                value: 'mix',
-                child: Text('Hinglish'),
-              ),
-            ],
-            onChanged: (value) {
-              if (value != null) {
-                AppSettings.setLanguageCode(value);
-              }
-            },
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Current: ${_languageLabel(languageCode)}',
-            style: const TextStyle(color: Color(0xFF667085)),
-          ),
-        ],
-      );
-    },
-  ),
-),
 
           const SizedBox(height: 16),
 
@@ -246,20 +252,18 @@ Container(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Peer Connection',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
+                Text(
+                  AppText.value(
+                    en: 'Peer Connection',
+                    hi: 'पीयर कनेक्शन',
+                    mix: 'Peer Connection',
                   ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 8),
                 const Text(
                   'Reset the install hint popup so you can test the peer install flow again.',
-                  style: TextStyle(
-                    color: Color(0xFF667085),
-                    height: 1.5,
-                  ),
+                  style: TextStyle(color: Color(0xFF667085), height: 1.5),
                 ),
                 const SizedBox(height: 14),
                 SizedBox(
@@ -306,18 +310,12 @@ Container(
               children: [
                 Text(
                   'About Prep Buddy',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                 ),
                 SizedBox(height: 8),
                 Text(
                   'Prep Buddy is designed to help students practice interview questions, improve communication, review saved answers, connect with peers, and track performance in one place.',
-                  style: TextStyle(
-                    color: Color(0xFF667085),
-                    height: 1.6,
-                  ),
+                  style: TextStyle(color: Color(0xFF667085), height: 1.6),
                 ),
               ],
             ),

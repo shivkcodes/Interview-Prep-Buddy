@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import '../app_text.dart';
 
 class LoginScreen extends StatefulWidget {
   final String? pendingJoinCode;
@@ -25,11 +26,10 @@ class _LoginScreenState extends State<LoginScreen> {
             '808331321792-m83hgrihoris9lcejipj3a7diel7ndic.apps.googleusercontent.com',
       );
 
-      final GoogleSignInAccount googleUser =
-          await GoogleSignIn.instance.authenticate();
+      final GoogleSignInAccount googleUser = await GoogleSignIn.instance
+          .authenticate();
 
-      final GoogleSignInAuthentication googleAuth =
-          googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
 
       final credential = GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
@@ -37,13 +37,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
       await FirebaseAuth.instance.signInWithCredential(credential);
     } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? 'Login failed')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message ?? 'Login failed')));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Login failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Login failed: $e')));
     } finally {
       if (mounted) {
         setState(() {
@@ -124,10 +124,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 6),
                 Text(
                   subtitle,
-                  style: const TextStyle(
-                    color: Color(0xFF667085),
-                    height: 1.5,
-                  ),
+                  style: const TextStyle(color: Color(0xFF667085), height: 1.5),
                 ),
               ],
             ),
@@ -271,10 +268,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     const Text(
                       'Sign in to set up your profile and personalize the app before entering.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Color(0xFF667085),
-                        height: 1.5,
-                      ),
+                      style: TextStyle(color: Color(0xFF667085), height: 1.5),
                     ),
                     const SizedBox(height: 20),
                     SizedBox(

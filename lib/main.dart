@@ -19,9 +19,7 @@ import 'screens/profile_setup_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await AppSettings.load();
   runApp(const InterviewPrepBuddyApp());
 }
@@ -37,51 +35,57 @@ class InterviewPrepBuddyApp extends StatelessWidget {
         return ValueListenableBuilder<double>(
           valueListenable: AppSettings.textScaleNotifier,
           builder: (context, textScale, _) {
-            return MaterialApp(
-              debugShowCheckedModeBanner: false,
-              title: 'Prep Buddy',
-              themeMode: themeMode,
-              theme: ThemeData(
-                useMaterial3: true,
-                scaffoldBackgroundColor: const Color(0xFFF4F7FB),
-                colorScheme: ColorScheme.fromSeed(
-                  seedColor: const Color(0xFF2346A0),
-                  brightness: Brightness.light,
-                ),
-                fontFamily: 'Arial',
-              ),
-              darkTheme: ThemeData(
-                useMaterial3: true,
-                scaffoldBackgroundColor: const Color(0xFF0F172A),
-                colorScheme: ColorScheme.fromSeed(
-                  seedColor: const Color(0xFF7EA1FF),
-                  brightness: Brightness.dark,
-                ),
-                fontFamily: 'Arial',
-              ),
-              builder: (context, child) {
-                final mediaQuery = MediaQuery.of(context);
-                return MediaQuery(
-                  data: mediaQuery.copyWith(
-                    textScaler: TextScaler.linear(textScale),
+            return ValueListenableBuilder<String>(
+              valueListenable: AppSettings.languageCodeNotifier,
+              builder: (context, languageCode, _) {
+                return MaterialApp(
+                  debugShowCheckedModeBanner: false,
+                  title: 'Prep Buddy',
+                  themeMode: themeMode,
+                  theme: ThemeData(
+                    useMaterial3: true,
+                    scaffoldBackgroundColor: const Color(0xFFF4F7FB),
+                    colorScheme: ColorScheme.fromSeed(
+                      seedColor: const Color(0xFF2346A0),
+                      brightness: Brightness.light,
+                    ),
+                    fontFamily: 'Arial',
                   ),
-                  child: child!,
-                );
-              },
-              onGenerateRoute: (settings) {
-                final name = settings.name ?? '/';
-                final uri = Uri.parse(name);
+                  darkTheme: ThemeData(
+                    useMaterial3: true,
+                    scaffoldBackgroundColor: const Color(0xFF0F172A),
+                    colorScheme: ColorScheme.fromSeed(
+                      seedColor: const Color(0xFF7EA1FF),
+                      brightness: Brightness.dark,
+                    ),
+                    fontFamily: 'Arial',
+                  ),
+                  builder: (context, child) {
+                    final mediaQuery = MediaQuery.of(context);
+                    return MediaQuery(
+                      data: mediaQuery.copyWith(
+                        textScaler: TextScaler.linear(textScale),
+                      ),
+                      child: child!,
+                    );
+                  },
+                  onGenerateRoute: (settings) {
+                    final name = settings.name ?? '/';
+                    final uri = Uri.parse(name);
 
-                final isJoinRoute =
-                    uri.path == '/join' ||
-                    (uri.scheme == 'interviewprepbuddy' &&
-                        uri.host == 'join');
+                    final isJoinRoute =
+                        uri.path == '/join' ||
+                        (uri.scheme == 'interviewprepbuddy' &&
+                            uri.host == 'join');
 
-                final code =
-                    isJoinRoute ? (uri.queryParameters['code'] ?? '') : null;
+                    final code = isJoinRoute
+                        ? (uri.queryParameters['code'] ?? '')
+                        : null;
 
-                return MaterialPageRoute(
-                  builder: (_) => AppGate(pendingJoinCode: code),
+                    return MaterialPageRoute(
+                      builder: (_) => AppGate(pendingJoinCode: code),
+                    );
+                  },
                 );
               },
             );
@@ -153,9 +157,7 @@ class _AppGateState extends State<AppGate> {
   @override
   Widget build(BuildContext context) {
     if (!hasShownInstallMessage) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return StreamBuilder<User?>(
@@ -170,41 +172,41 @@ class _AppGateState extends State<AppGate> {
         final user = snapshot.data;
 
         if (user == null) {
-  return LoginScreen(pendingJoinCode: widget.pendingJoinCode);
-}
+          return LoginScreen(pendingJoinCode: widget.pendingJoinCode);
+        }
 
-return FutureBuilder<DocumentSnapshot>(
-  future: FirebaseFirestore.instance
-      .collection('profiles')
-      .doc(user.uid)
-      .get(),
-  builder: (context, profileSnapshot) {
-    if (profileSnapshot.connectionState == ConnectionState.waiting) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
+        return FutureBuilder<DocumentSnapshot>(
+          future: FirebaseFirestore.instance
+              .collection('profiles')
+              .doc(user.uid)
+              .get(),
+          builder: (context, profileSnapshot) {
+            if (profileSnapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
 
-    final profileData =
-        profileSnapshot.data?.data() as Map<String, dynamic>?;
+            final profileData =
+                profileSnapshot.data?.data() as Map<String, dynamic>?;
 
-    final onboardingCompleted =
-        profileData?['onboardingCompleted'] == true;
+            final onboardingCompleted =
+                profileData?['onboardingCompleted'] == true;
 
-    if (!onboardingCompleted) {
-      return ProfileSetupScreen(
-        pendingJoinCode: widget.pendingJoinCode,
-      );
-    }
+            if (!onboardingCompleted) {
+              return ProfileSetupScreen(
+                pendingJoinCode: widget.pendingJoinCode,
+              );
+            }
 
-    if (widget.pendingJoinCode != null &&
-        widget.pendingJoinCode!.isNotEmpty) {
-      return JoinPeerScreen(code: widget.pendingJoinCode!);
-    }
+            if (widget.pendingJoinCode != null &&
+                widget.pendingJoinCode!.isNotEmpty) {
+              return JoinPeerScreen(code: widget.pendingJoinCode!);
+            }
 
-    return const MainScreen();
-  },
-);
+            return const MainScreen();
+          },
+        );
       },
     );
   }
@@ -253,72 +255,81 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void triggerTitleAnimation() {
-  setState(() {
-    titleAnimationTick++;
-  });
-}
+    setState(() {
+      titleAnimationTick++;
+      attempts.clear();
+    });
+  }
 
-Widget buildAnimatedTitle() {
-  return GestureDetector(
-    onTap: triggerTitleAnimation,
-    child: TweenAnimationBuilder<double>(
-      key: ValueKey(titleAnimationTick),
-      tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 700),
-      builder: (context, value, child) {
-        final wave = sin(value * pi);
-
-        return Transform.rotate(
-          angle: wave * 0.06,
-          child: Transform.scale(
-            scale: 1 + (wave * 0.08),
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 6,
-              ),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF2346A0), Color(0xFF4D7BFF)],
-                ),
-                borderRadius: BorderRadius.circular(999),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF2346A0).withOpacity(0.22),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Transform.rotate(
-                    angle: wave * 0.5,
-                    child: const Icon(
-                      Icons.auto_awesome_rounded,
-                      size: 18,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Prep Buddy',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+  Widget buildAnimatedTitle() {
+    return GestureDetector(
+      onTap: () {
+        triggerTitleAnimation();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Home refreshed'),
+            duration: Duration(milliseconds: 800),
           ),
         );
       },
-    ),
-  );
-}
+      child: TweenAnimationBuilder<double>(
+        key: ValueKey(titleAnimationTick),
+        tween: Tween(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 700),
+        builder: (context, value, child) {
+          final wave = sin(value * pi);
+
+          return Transform.rotate(
+            angle: wave * 0.06,
+            child: Transform.scale(
+              scale: 1 + (wave * 0.08),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF2346A0), Color(0xFF4D7BFF)],
+                  ),
+                  borderRadius: BorderRadius.circular(999),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF2346A0).withOpacity(0.22),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Transform.rotate(
+                      angle: wave * 0.5,
+                      child: const Icon(
+                        Icons.auto_awesome_rounded,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Prep Buddy',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -341,162 +352,186 @@ Widget buildAnimatedTitle() {
             appBar: AppBar(
               title: buildAnimatedTitle(),
               actions: [
-  Padding(
-    padding: const EdgeInsets.only(right: 12),
-    child: GestureDetector(
-      onTap: () {
-        showModalBottomSheet(
-          context: context,
-          backgroundColor: Colors.white,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          builder: (context) {
-            final userName = currentUser?.displayName ?? 'User';
-            final userEmail = currentUser?.email ?? '';
-            final userPhoto = currentUser?.photoURL;
-            final initial = userName.isNotEmpty
-                ? userName.trim().substring(0, 1).toUpperCase()
-                : 'U';
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: GestureDetector(
+                    onTap: () {
+                      showModalBottomSheet(
+                        context: context,
+                        backgroundColor: Colors.white,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(24),
+                          ),
+                        ),
+                        builder: (context) {
+                          final userName = currentUser?.displayName ?? 'User';
+                          final userEmail = currentUser?.email ?? '';
+                          final userPhoto = currentUser?.photoURL;
+                          final initial = userName.isNotEmpty
+                              ? userName.trim().substring(0, 1).toUpperCase()
+                              : 'U';
 
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFD0D5DD),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    CircleAvatar(
-                      radius: 34,
-                      backgroundColor: const Color(0xFFE8EEFF),
-                      backgroundImage:
-                          userPhoto != null ? NetworkImage(userPhoto) : null,
-                      child: userPhoto == null
-                          ? Text(
-                              initial,
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF2346A0),
+                          return SafeArea(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                20,
+                                20,
+                                20,
+                                24,
                               ),
-                            )
-                          : null,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      userName,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1C2434),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      userEmail,
-                      style: const TextStyle(
-                        color: Color(0xFF667085),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const ProfileScreen(),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 42,
+                                    height: 4,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFD0D5DD),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 18),
+                                  CircleAvatar(
+                                    radius: 34,
+                                    backgroundColor: const Color(0xFFE8EEFF),
+                                    backgroundImage: userPhoto != null
+                                        ? NetworkImage(userPhoto)
+                                        : null,
+                                    child: userPhoto == null
+                                        ? Text(
+                                            initial,
+                                            style: const TextStyle(
+                                              fontSize: 24,
+                                              fontWeight: FontWeight.w700,
+                                              color: Color(0xFF2346A0),
+                                            ),
+                                          )
+                                        : null,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    userName,
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF1C2434),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    userEmail,
+                                    style: const TextStyle(
+                                      color: Color(0xFF667085),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: OutlinedButton.icon(
+                                      onPressed: () {
+                                        Navigator.pop(context);
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                const ProfileScreen(),
+                                          ),
+                                        );
+                                      },
+                                      icon: const Icon(Icons.person_outline),
+                                      label: const Text('Open Profile'),
+                                      style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 14,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton.icon(
+                                      onPressed: () async {
+                                        Navigator.pop(context);
+                                        await FirebaseAuth.instance.signOut();
+                                        if (!context.mounted) return;
+                                        Navigator.of(
+                                          context,
+                                        ).pushNamedAndRemoveUntil(
+                                          '/',
+                                          (route) => false,
+                                        );
+                                      },
+                                      icon: const Icon(Icons.logout),
+                                      label: const Text('Sign Out'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xFFE4583E,
+                                        ),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 14,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           );
                         },
-                        icon: const Icon(Icons.person_outline),
-                        label: const Text('Open Profile'),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFFDCE7FF),
+                          width: 2,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () async {
-                          Navigator.pop(context);
-                          await FirebaseAuth.instance.signOut();
-                          if (!context.mounted) return;
-                          Navigator.of(context)
-                              .pushNamedAndRemoveUntil('/', (route) => false);
-                        },
-                        icon: const Icon(Icons.logout),
-                        label: const Text('Sign Out'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFE4583E),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
+                      child: CircleAvatar(
+                        radius: 18,
+                        backgroundColor: const Color(0xFFE8EEFF),
+                        backgroundImage: currentUser?.photoURL != null
+                            ? NetworkImage(currentUser!.photoURL!)
+                            : null,
+                        child: currentUser?.photoURL == null
+                            ? Text(
+                                (currentUser?.displayName?.isNotEmpty ?? false)
+                                    ? currentUser!.displayName!
+                                          .trim()
+                                          .substring(0, 1)
+                                          .toUpperCase()
+                                    : 'U',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF2346A0),
+                                ),
+                              )
+                            : null,
                       ),
                     ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.all(2),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: const Color(0xFFDCE7FF),
-            width: 2,
-          ),
-        ),
-        child: CircleAvatar(
-          radius: 18,
-          backgroundColor: const Color(0xFFE8EEFF),
-          backgroundImage: currentUser?.photoURL != null
-              ? NetworkImage(currentUser!.photoURL!)
-              : null,
-          child: currentUser?.photoURL == null
-              ? Text(
-                  (currentUser?.displayName?.isNotEmpty ?? false)
-                      ? currentUser!.displayName!
-                          .trim()
-                          .substring(0, 1)
-                          .toUpperCase()
-                      : 'U',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF2346A0),
                   ),
-                )
-              : null,
-        ),
-      ),
-    ),
-  ),
-],
-
+                ),
+              ],
             ),
             body: Center(
-              child: Text('Questions load karne me error aaya: ${snapshot.error}'),
+              child: Text(
+                'Questions load karne me error aaya: ${snapshot.error}',
+              ),
             ),
           );
         }
@@ -513,13 +548,13 @@ Widget buildAnimatedTitle() {
 
         final screens = [
           HomeScreen(
-  attempts: attempts,
-  onOpenTab: (index) {
-    setState(() {
-      selectedIndex = index;
-    });
-  },
-),
+            attempts: attempts,
+            onOpenTab: (index) {
+              setState(() {
+                selectedIndex = index;
+              });
+            },
+          ),
           QuestionBankScreen(questions: questions),
           MockInterviewScreen(
             questions: questions,
@@ -534,159 +569,169 @@ Widget buildAnimatedTitle() {
           appBar: AppBar(
             title: buildAnimatedTitle(),
             actions: [
-  Padding(
-    padding: const EdgeInsets.only(right: 12),
-    child: GestureDetector(
-      onTap: () {
-        showModalBottomSheet(
-          context: context,
-          backgroundColor: Colors.white,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          builder: (context) {
-            final userName = currentUser?.displayName ?? 'User';
-            final userEmail = currentUser?.email ?? '';
-            final userPhoto = currentUser?.photoURL;
-            final initial = userName.isNotEmpty
-                ? userName.trim().substring(0, 1).toUpperCase()
-                : 'U';
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: GestureDetector(
+                  onTap: () {
+                    showModalBottomSheet(
+                      context: context,
+                      backgroundColor: Colors.white,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(24),
+                        ),
+                      ),
+                      builder: (context) {
+                        final userName = currentUser?.displayName ?? 'User';
+                        final userEmail = currentUser?.email ?? '';
+                        final userPhoto = currentUser?.photoURL;
+                        final initial = userName.isNotEmpty
+                            ? userName.trim().substring(0, 1).toUpperCase()
+                            : 'U';
 
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFD0D5DD),
-                        borderRadius: BorderRadius.circular(999),
+                        return SafeArea(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 42,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFD0D5DD),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                ),
+                                const SizedBox(height: 18),
+                                CircleAvatar(
+                                  radius: 34,
+                                  backgroundColor: const Color(0xFFE8EEFF),
+                                  backgroundImage: userPhoto != null
+                                      ? NetworkImage(userPhoto)
+                                      : null,
+                                  child: userPhoto == null
+                                      ? Text(
+                                          initial,
+                                          style: const TextStyle(
+                                            fontSize: 24,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF2346A0),
+                                          ),
+                                        )
+                                      : null,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  userName,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF1C2434),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  userEmail,
+                                  style: const TextStyle(
+                                    color: Color(0xFF667085),
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed: () {
+                                      Navigator.pop(context);
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => const ProfileScreen(),
+                                        ),
+                                      );
+                                    },
+                                    icon: const Icon(Icons.person_outline),
+                                    label: const Text('Open Profile'),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: () async {
+                                      Navigator.pop(context);
+                                      await FirebaseAuth.instance.signOut();
+                                      if (!context.mounted) return;
+                                      Navigator.of(
+                                        context,
+                                      ).pushNamedAndRemoveUntil(
+                                        '/',
+                                        (route) => false,
+                                      );
+                                    },
+                                    icon: const Icon(Icons.logout),
+                                    label: const Text('Sign Out'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFFE4583E),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xFFDCE7FF),
+                        width: 2,
                       ),
                     ),
-                    const SizedBox(height: 18),
-                    CircleAvatar(
-                      radius: 34,
+                    child: CircleAvatar(
+                      radius: 18,
                       backgroundColor: const Color(0xFFE8EEFF),
-                      backgroundImage:
-                          userPhoto != null ? NetworkImage(userPhoto) : null,
-                      child: userPhoto == null
+                      backgroundImage: currentUser?.photoURL != null
+                          ? NetworkImage(currentUser!.photoURL!)
+                          : null,
+                      child: currentUser?.photoURL == null
                           ? Text(
-                              initial,
+                              (currentUser?.displayName?.isNotEmpty ?? false)
+                                  ? currentUser!.displayName!
+                                        .trim()
+                                        .substring(0, 1)
+                                        .toUpperCase()
+                                  : 'U',
                               style: const TextStyle(
-                                fontSize: 24,
                                 fontWeight: FontWeight.w700,
                                 color: Color(0xFF2346A0),
                               ),
                             )
                           : null,
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      userName,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1C2434),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      userEmail,
-                      style: const TextStyle(
-                        color: Color(0xFF667085),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const ProfileScreen(),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.person_outline),
-                        label: const Text('Open Profile'),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () async {
-                          Navigator.pop(context);
-                          await FirebaseAuth.instance.signOut();
-                          if (!context.mounted) return;
-                          Navigator.of(context)
-                              .pushNamedAndRemoveUntil('/', (route) => false);
-                        },
-                        icon: const Icon(Icons.logout),
-                        label: const Text('Sign Out'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFE4583E),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            );
-          },
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.all(2),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: const Color(0xFFDCE7FF),
-            width: 2,
-          ),
-        ),
-        child: CircleAvatar(
-          radius: 18,
-          backgroundColor: const Color(0xFFE8EEFF),
-          backgroundImage: currentUser?.photoURL != null
-              ? NetworkImage(currentUser!.photoURL!)
-              : null,
-          child: currentUser?.photoURL == null
-              ? Text(
-                  (currentUser?.displayName?.isNotEmpty ?? false)
-                      ? currentUser!.displayName!
-                          .trim()
-                          .substring(0, 1)
-                          .toUpperCase()
-                      : 'U',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF2346A0),
-                  ),
-                )
-              : null,
-        ),
-      ),
-    ),
-  ),
-],
-
+            ],
           ),
           body: screens[selectedIndex],
           bottomNavigationBar: NavigationBar(
@@ -786,7 +831,11 @@ class HomeScreen extends StatelessWidget {
             padding: const EdgeInsets.all(22),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF18357E), Color(0xFF2346A0), Color(0xFF4D7BFF)],
+                colors: [
+                  Color(0xFF18357E),
+                  Color(0xFF2346A0),
+                  Color(0xFF4D7BFF),
+                ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -931,10 +980,7 @@ class HomeScreen extends StatelessWidget {
                 SizedBox(height: 8),
                 Text(
                   "This home page is your quick overview. You can jump directly into practice, check your analysis, review saved work, or continue peer collaboration from here.",
-                  style: TextStyle(
-                    color: Color(0xFF667085),
-                    height: 1.6,
-                  ),
+                  style: TextStyle(color: Color(0xFF667085), height: 1.6),
                 ),
               ],
             ),
@@ -1111,10 +1157,7 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   subtitle,
-                  style: const TextStyle(
-                    color: Color(0xFF667085),
-                    height: 1.5,
-                  ),
+                  style: const TextStyle(color: Color(0xFF667085), height: 1.5),
                 ),
               ],
             ),
@@ -1297,7 +1340,10 @@ class QuestionBankScreen extends StatelessWidget {
                     children: [
                       Text(
                         "Question Bank",
-                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                       SizedBox(height: 6),
                       Text(
@@ -1465,10 +1511,7 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
       return;
     }
 
-    await speechToText.listen(
-      partialResults: true,
-      onResult: onSpeechResult,
-    );
+    await speechToText.listen(partialResults: true, onResult: onSpeechResult);
 
     if (!mounted) return;
 
@@ -1520,8 +1563,7 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
       }
     }
 
-    final double lengthScore =
-        wordCount >= 30 ? 40.0 : (wordCount / 30) * 40.0;
+    final double lengthScore = wordCount >= 30 ? 40.0 : (wordCount / 30) * 40.0;
 
     final double keywordScore = keywords.isEmpty
         ? 0.0
@@ -1582,7 +1624,9 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
     final answer = answerController.text.trim();
     if (answer.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please type or speak your answer first.")),
+        const SnackBar(
+          content: Text("Please type or speak your answer first."),
+        ),
       );
       return;
     }
@@ -1594,10 +1638,7 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
       keywords: List<String>.from(selected["keywords"]),
     );
 
-    await saveAnswerToFirestore(
-      selectedQuestion: selected,
-      attempt: attempt,
-    );
+    await saveAnswerToFirestore(selectedQuestion: selected, attempt: attempt);
 
     widget.onSubmitAttempt(attempt);
 
@@ -1749,8 +1790,9 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
                 child: ElevatedButton.icon(
                   onPressed: isListening ? stopListening : startListening,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        isListening ? Colors.red : const Color(0xFF2346A0),
+                    backgroundColor: isListening
+                        ? Colors.red
+                        : const Color(0xFF2346A0),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(18),
@@ -2063,18 +2105,12 @@ class _PerformanceContentState extends State<_PerformanceContent> {
               const SizedBox(height: 16),
               const Text(
                 "Your Answer",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 8),
               Text(
                 selected['answer'],
-                style: const TextStyle(
-                  fontSize: 14.5,
-                  height: 1.4,
-                ),
+                style: const TextStyle(fontSize: 14.5, height: 1.4),
               ),
               const SizedBox(height: 18),
               InfoCard(
@@ -2104,7 +2140,8 @@ class _PerformanceContentState extends State<_PerformanceContent> {
               const SizedBox(height: 12),
               InfoCard(
                 title: "Voice Accuracy",
-                value: "${((selected['speechConfidence'] as double) * 100).toStringAsFixed(1)}%",
+                value:
+                    "${((selected['speechConfidence'] as double) * 100).toStringAsFixed(1)}%",
                 color: const Color(0xFF06B6D4),
               ),
             ],
@@ -2153,10 +2190,7 @@ class InfoCard extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
             ),
           ),
           Text(
@@ -2206,125 +2240,125 @@ class _PeerPracticeScreenState extends State<PeerPracticeScreen> {
   }
 
   Future<void> loadPeerPrefs() async {
-  peerPrefs = await SharedPreferences.getInstance();
-  if (mounted) {
-    setState(() {});
+    peerPrefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {});
+    }
   }
-}
 
-String getDisplayPeerName(String peerUserId, String fallbackName) {
-  final alias = peerPrefs?.getString('peer_alias_$peerUserId') ?? '';
-  final trimmedAlias = alias.trim();
-  return trimmedAlias.isEmpty ? fallbackName : trimmedAlias;
-}
+  String getDisplayPeerName(String peerUserId, String fallbackName) {
+    final alias = peerPrefs?.getString('peer_alias_$peerUserId') ?? '';
+    final trimmedAlias = alias.trim();
+    return trimmedAlias.isEmpty ? fallbackName : trimmedAlias;
+  }
 
-Future<void> renamePeerLocally({
-  required String peerUserId,
-  required String originalName,
-}) async {
-  final controller = TextEditingController(
-    text: getDisplayPeerName(peerUserId, originalName),
-  );
+  Future<void> renamePeerLocally({
+    required String peerUserId,
+    required String originalName,
+  }) async {
+    final controller = TextEditingController(
+      text: getDisplayPeerName(peerUserId, originalName),
+    );
 
-  final newName = await showDialog<String>(
-    context: context,
-    builder: (context) {
-      return AlertDialog(
-        title: const Text('Rename Peer'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Peer Name',
-            border: OutlineInputBorder(),
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Rename Peer'),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              labelText: 'Peer Name',
+              border: OutlineInputBorder(),
+            ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context, controller.text.trim());
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      );
-    },
-  );
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context, controller.text.trim());
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
 
-  if (newName == null) return;
+    if (newName == null) return;
 
-  if (newName.isEmpty || newName == originalName) {
+    if (newName.isEmpty || newName == originalName) {
+      await peerPrefs?.remove('peer_alias_$peerUserId');
+    } else {
+      await peerPrefs?.setString('peer_alias_$peerUserId', newName);
+    }
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> deletePeer({
+    required String inviteDocId,
+    required String peerUserId,
+  }) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete Peer'),
+          content: const Text(
+            'Agar aap is peer ko delete karte ho to dono devices se ye connection remove ho jayega.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete != true) return;
+
+    await FirebaseFirestore.instance
+        .collection('peer_invites')
+        .doc(inviteDocId)
+        .update({
+          'status': 'removed',
+          'removedBy': currentUserId,
+          'removedAt': FieldValue.serverTimestamp(),
+        });
+
     await peerPrefs?.remove('peer_alias_$peerUserId');
-  } else {
-    await peerPrefs?.setString('peer_alias_$peerUserId', newName);
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Peer removed successfully')));
   }
-
-  if (mounted) {
-    setState(() {});
-  }
-}
-
-Future<void> deletePeer({
-  required String inviteDocId,
-  required String peerUserId,
-}) async {
-  final shouldDelete = await showDialog<bool>(
-    context: context,
-    builder: (context) {
-      return AlertDialog(
-        title: const Text('Delete Peer'),
-        content: const Text(
-          'Agar aap is peer ko delete karte ho to dono devices se ye connection remove ho jayega.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      );
-    },
-  );
-
-  if (shouldDelete != true) return;
-
-  await FirebaseFirestore.instance
-      .collection('peer_invites')
-      .doc(inviteDocId)
-      .update({
-    'status': 'removed',
-    'removedBy': currentUserId,
-    'removedAt': FieldValue.serverTimestamp(),
-  });
-
-  await peerPrefs?.remove('peer_alias_$peerUserId');
-
-  if (!mounted) return;
-
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('Peer removed successfully')),
-  );
-}
 
   String buildChatId(String userA, String userB) {
-  final users = [userA, userB]..sort();
-  return '${users[0]}_${users[1]}';
-}
+    final users = [userA, userB]..sort();
+    return '${users[0]}_${users[1]}';
+  }
 
-String formatLastMessageTime(Timestamp? timestamp) {
-  if (timestamp == null) return '';
-  final date = timestamp.toDate();
-  final hour = date.hour.toString().padLeft(2, '0');
-  final minute = date.minute.toString().padLeft(2, '0');
-  return '$hour:$minute';
-}
+  String formatLastMessageTime(Timestamp? timestamp) {
+    if (timestamp == null) return '';
+    final date = timestamp.toDate();
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
 
   String generateCode() {
     final millis = DateTime.now().millisecondsSinceEpoch.toString();
@@ -2358,9 +2392,7 @@ String formatLastMessageTime(Timestamp? timestamp) {
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return const SafeArea(
-        child: Center(child: CircularProgressIndicator()),
-      );
+      return const SafeArea(child: Center(child: CircularProgressIndicator()));
     }
 
     return SafeArea(
@@ -2400,10 +2432,8 @@ String formatLastMessageTime(Timestamp? timestamp) {
               final connectedDocs = allDocs.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 return data['status'] == 'joined' &&
-                    (
-                      data['ownerId'] == currentUserId ||
-                      data['joinedUserId'] == currentUserId
-                    );
+                    (data['ownerId'] == currentUserId ||
+                        data['joinedUserId'] == currentUserId);
               }).toList();
 
               if (connectedDocs.isEmpty) {
@@ -2413,9 +2443,7 @@ String formatLastMessageTime(Timestamp? timestamp) {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Text(
-                    "Abhi koi peer connected nahi hai.",
-                  ),
+                  child: const Text("Abhi koi peer connected nahi hai."),
                 );
               }
 
@@ -2434,187 +2462,254 @@ String formatLastMessageTime(Timestamp? timestamp) {
                       : 'Peer Who Invited You';
 
                   final String peerUserId = amOwner
-    ? (data['joinedUserId'] ?? '')
-    : (data['ownerId'] ?? '');
+                      ? (data['joinedUserId'] ?? '')
+                      : (data['ownerId'] ?? '');
 
-final String invitePhotoUrl = amOwner
-    ? (data['joinedPhotoUrl'] ?? '')
-    : (data['ownerPhotoUrl'] ?? '');
+                  final String invitePhotoUrl = amOwner
+                      ? (data['joinedPhotoUrl'] ?? '')
+                      : (data['ownerPhotoUrl'] ?? '');
 
-final String displayPeerName = getDisplayPeerName(
-  peerUserId,
-  peerName,
-);
+                  final String displayPeerName = getDisplayPeerName(
+                    peerUserId,
+                    peerName,
+                  );
 
-return FutureBuilder<DocumentSnapshot>(
-  future: FirebaseFirestore.instance
-      .collection('profiles')
-      .doc(peerUserId)
-      .get(),
-  builder: (context, profileSnapshot) {
-    final profileData =
-        profileSnapshot.data?.data() as Map<String, dynamic>?;
+                  return FutureBuilder<DocumentSnapshot>(
+                    future: FirebaseFirestore.instance
+                        .collection('profiles')
+                        .doc(peerUserId)
+                        .get(),
+                    builder: (context, profileSnapshot) {
+                      final profileData =
+                          profileSnapshot.data?.data() as Map<String, dynamic>?;
 
-    final peerPhotoUrl =
-        (profileData?['photoUrl'] ?? invitePhotoUrl).toString();
+                      final peerPhotoUrl =
+                          (profileData?['photoUrl'] ?? invitePhotoUrl)
+                              .toString();
 
-    final chatId = buildChatId(currentUserId ?? '', peerUserId);
+                      final chatId = buildChatId(
+                        currentUserId ?? '',
+                        peerUserId,
+                      );
 
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('peer_chats')
-          .doc(chatId)
-          .snapshots(),
-      builder: (context, chatSnapshot) {
-        final chatData =
-            chatSnapshot.data?.data() as Map<String, dynamic>?;
+                      return StreamBuilder<DocumentSnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('peer_chats')
+                            .doc(chatId)
+                            .snapshots(),
+                        builder: (context, chatSnapshot) {
+                          final chatData =
+                              chatSnapshot.data?.data()
+                                  as Map<String, dynamic>?;
 
-        final lastMessage =
-            (chatData?['lastMessage'] ?? '').toString().trim();
+                          final lastMessage = (chatData?['lastMessage'] ?? '')
+                              .toString()
+                              .trim();
 
-        final lastMessageAt =
-            chatData?['lastMessageAt'] as Timestamp?;
+                          final lastMessageAt =
+                              chatData?['lastMessageAt'] as Timestamp?;
 
-        final previewText = lastMessage.isEmpty
-            ? 'Tap to view profile and start chatting'
-            : lastMessage;
+                          final previewText = lastMessage.isEmpty
+                              ? 'Tap to view profile and start chatting'
+                              : lastMessage;
 
-        return GestureDetector(
-          onTap: () {
-            if (peerUserId.toString().isEmpty) return;
+                          final unreadCounts =
+                              (chatData?['unreadCounts']
+                                  as Map<String, dynamic>?) ??
+                              {};
 
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => PeerDetailScreen(
-                  peerUserId: peerUserId,
-                  peerName: displayPeerName,
-                ),
-              ),
-            );
-          },
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x12000000),
-                  blurRadius: 12,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundImage: peerPhotoUrl.isNotEmpty
-                      ? NetworkImage(peerPhotoUrl)
-                      : null,
-                  child: peerPhotoUrl.isEmpty
-                      ? Text(
-                          displayPeerName.isNotEmpty
-                            ? displayPeerName[0].toUpperCase()
-                            : 'U',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        )
-                      : null,
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-  children: [
-    Expanded(
-      child: Text(
-        displayPeerName,
-        style: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    ),
-    if (lastMessageAt != null)
-      Padding(
-        padding: const EdgeInsets.only(right: 4),
-        child: Text(
-          formatLastMessageTime(lastMessageAt),
-          style: const TextStyle(
-            color: Color(0xFF98A2B3),
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    PopupMenuButton<String>(
-      onSelected: (value) {
-        if (value == 'rename') {
-          renamePeerLocally(
-            peerUserId: peerUserId,
-            originalName: peerName,
-          );
-        } else if (value == 'delete') {
-          deletePeer(
-            inviteDocId: doc.id,
-            peerUserId: peerUserId,
-          );
-        }
-      },
-      itemBuilder: (context) => const [
-        PopupMenuItem(
-          value: 'rename',
-          child: Text('Rename'),
-        ),
-        PopupMenuItem(
-          value: 'delete',
-          child: Text('Delete'),
-        ),
-      ],
-    ),
-  ],
-),
-                      const SizedBox(height: 4),
-                      Text(
-                        peerRole,
-                        style: const TextStyle(
-                          color: Color(0xFF667085),
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        previewText,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: lastMessage.isEmpty
-                              ? const Color(0xFF98A2B3)
-                              : const Color(0xFF2346A0),
-                          fontSize: 13.5,
-                          fontWeight: lastMessage.isEmpty
-                              ? FontWeight.w500
-                              : FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  },
-);
+                          final unreadCount =
+                              (unreadCounts[currentUserId] ?? 0) as num;
+
+                          final hasUnread = unreadCount > 0;
+
+                          final lastMessageSenderId =
+                              (chatData?['lastMessageSenderId'] ?? '')
+                                  .toString();
+
+                          final previewPrefix =
+                              hasUnread && lastMessageSenderId == peerUserId
+                              ? 'New: '
+                              : '';
+
+                          return GestureDetector(
+                            onTap: () {
+                              if (peerUserId.toString().isEmpty) return;
+
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => PeerDetailScreen(
+                                    peerUserId: peerUserId,
+                                    peerName: displayPeerName,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x12000000),
+                                    blurRadius: 12,
+                                    offset: Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 24,
+                                    backgroundImage: peerPhotoUrl.isNotEmpty
+                                        ? NetworkImage(peerPhotoUrl)
+                                        : null,
+                                    child: peerPhotoUrl.isEmpty
+                                        ? Text(
+                                            displayPeerName.isNotEmpty
+                                                ? displayPeerName[0]
+                                                      .toUpperCase()
+                                                : 'U',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          )
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                displayPeerName,
+                                                style: const TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                            ),
+                                            if (hasUnread)
+                                              Container(
+                                                margin: const EdgeInsets.only(
+                                                  left: 8,
+                                                ),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 4,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(
+                                                    0xFFE4583E,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        999,
+                                                      ),
+                                                ),
+                                                child: Text(
+                                                  unreadCount > 99
+                                                      ? '99+'
+                                                      : unreadCount.toString(),
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                            if (lastMessageAt != null)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  right: 4,
+                                                ),
+                                                child: Text(
+                                                  formatLastMessageTime(
+                                                    lastMessageAt,
+                                                  ),
+                                                  style: const TextStyle(
+                                                    color: Color(0xFF98A2B3),
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
+                                            PopupMenuButton<String>(
+                                              onSelected: (value) {
+                                                if (value == 'rename') {
+                                                  renamePeerLocally(
+                                                    peerUserId: peerUserId,
+                                                    originalName: peerName,
+                                                  );
+                                                } else if (value == 'delete') {
+                                                  deletePeer(
+                                                    inviteDocId: doc.id,
+                                                    peerUserId: peerUserId,
+                                                  );
+                                                }
+                                              },
+                                              itemBuilder: (context) => const [
+                                                PopupMenuItem(
+                                                  value: 'rename',
+                                                  child: Text('Rename'),
+                                                ),
+                                                PopupMenuItem(
+                                                  value: 'delete',
+                                                  child: Text('Delete'),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          peerRole,
+                                          style: const TextStyle(
+                                            color: Color(0xFF667085),
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          '$previewPrefix$previewText',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: lastMessage.isEmpty
+                                                ? const Color(0xFF98A2B3)
+                                                : (hasUnread
+                                                      ? const Color(0xFFE4583E)
+                                                      : const Color(
+                                                          0xFF2346A0,
+                                                        )),
+                                            fontSize: 13.5,
+                                            fontWeight: lastMessage.isEmpty
+                                                ? FontWeight.w500
+                                                : (hasUnread
+                                                      ? FontWeight.w700
+                                                      : FontWeight.w600),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  );
                 }).toList(),
               );
             },
