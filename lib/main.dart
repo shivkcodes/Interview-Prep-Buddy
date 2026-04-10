@@ -8,7 +8,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'screens/login_screen.dart';
-
+import 'screens/add_question_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -117,34 +117,6 @@ class _MainScreenState extends State<MainScreen> {
 
   final List<Attempt> attempts = [];
 
-  final List<Map<String, dynamic>> mockQuestions = [
-    {
-      "question": "Tell me about yourself.",
-      "keywords": ["student", "skills", "project", "goal"],
-      "type": "HR",
-    },
-    {
-      "question": "What are your strengths and weaknesses?",
-      "keywords": ["hardworking", "teamwork", "communication", "improve"],
-      "type": "HR",
-    },
-    {
-      "question": "What is the difference between OOP and POP?",
-      "keywords": ["class", "object", "procedure", "function"],
-      "type": "Technical",
-    },
-    {
-      "question": "Explain the concept of API.",
-      "keywords": ["request", "response", "server", "data"],
-      "type": "Technical",
-    },
-    {
-      "question": "What is Firebase and where is it used?",
-      "keywords": ["backend", "database", "authentication", "cloud"],
-      "type": "Technical",
-    },
-  ];
-
   void addAttempt(Attempt attempt) {
     setState(() {
       attempts.insert(0, attempt);
@@ -154,68 +126,111 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final screens = [
-      HomeScreen(attempts: attempts),
-      QuestionBankScreen(questions: mockQuestions),
-      MockInterviewScreen(
-        questions: mockQuestions,
-        onSubmitAttempt: addAttempt,
-      ),
-      PerformanceScreen(attempts: attempts),
-      const PeerPracticeScreen(),
-    ];
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('questions')
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Interview Prep Buddy'),
-        actions: [
-          IconButton(
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
+        if (snapshot.hasError) {
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Prep Buddy'),
+              actions: [
+                IconButton(
+                  onPressed: () async {
+                    await FirebaseAuth.instance.signOut();
+                  },
+                  icon: const Icon(Icons.logout),
+                ),
+              ],
+            ),
+            body: Center(
+              child: Text('Questions load karne me error aaya: ${snapshot.error}'),
+            ),
+          );
+        }
+
+        final questions = snapshot.data!.docs.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return {
+            "id": doc.id,
+            "question": data["question"] ?? "",
+            "type": data["type"] ?? "General",
+            "keywords": List<String>.from(data["keywords"] ?? []),
+          };
+        }).toList();
+
+        final screens = [
+          HomeScreen(attempts: attempts),
+          QuestionBankScreen(questions: questions),
+          MockInterviewScreen(
+            questions: questions,
+            onSubmitAttempt: addAttempt,
+          ),
+          PerformanceScreen(attempts: attempts),
+          const PeerPracticeScreen(),
+        ];
+
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Prep Buddy'),
+            actions: [
+              IconButton(
+                onPressed: () async {
+                  await FirebaseAuth.instance.signOut();
+                },
+                icon: const Icon(Icons.logout),
+              ),
+            ],
+          ),
+          body: screens[selectedIndex],
+          bottomNavigationBar: NavigationBar(
+            height: 72,
+            selectedIndex: selectedIndex,
+            backgroundColor: Colors.white,
+            indicatorColor: const Color(0xFFDCE7FF),
+            onDestinationSelected: (index) {
+              setState(() {
+                selectedIndex = index;
+              });
             },
-            icon: const Icon(Icons.logout),
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home),
+                label: "Home",
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.menu_book_outlined),
+                selectedIcon: Icon(Icons.menu_book),
+                label: "Questions",
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.mic_none_outlined),
+                selectedIcon: Icon(Icons.mic),
+                label: "Mock",
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.bar_chart_outlined),
+                selectedIcon: Icon(Icons.bar_chart),
+                label: "Analysis",
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.people_outline),
+                selectedIcon: Icon(Icons.people),
+                label: "Peers",
+              ),
+            ],
           ),
-        ],
-      ),
-      body: screens[selectedIndex],
-      bottomNavigationBar: NavigationBar(
-        height: 72,
-        selectedIndex: selectedIndex,
-        backgroundColor: Colors.white,
-        indicatorColor: const Color(0xFFDCE7FF),
-        onDestinationSelected: (index) {
-          setState(() {
-            selectedIndex = index;
-          });
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: "Home",
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.menu_book_outlined),
-            selectedIcon: Icon(Icons.menu_book),
-            label: "Questions",
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.mic_none_outlined),
-            selectedIcon: Icon(Icons.mic),
-            label: "Mock",
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.bar_chart_outlined),
-            selectedIcon: Icon(Icons.bar_chart),
-            label: "Analysis",
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.people_outline),
-            selectedIcon: Icon(Icons.people),
-            label: "Peers",
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -513,80 +528,113 @@ class QuestionBankScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              "Question Bank",
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              "Practice HR aur Technical interview questions",
-              style: TextStyle(color: Color(0xFF667085)),
+            Row(
+              children: [
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Question Bank",
+                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+                      ),
+                      SizedBox(height: 6),
+                      Text(
+                        "Firestore se synced HR aur Technical questions",
+                        style: TextStyle(color: Color(0xFF667085)),
+                      ),
+                    ],
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AddQuestionScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Question'),
+                ),
+              ],
             ),
             const SizedBox(height: 18),
             Expanded(
-              child: ListView.builder(
-                itemCount: questions.length,
-                itemBuilder: (context, index) {
-                  final item = questions[index];
-                  final isHr = item["type"] == "HR";
+              child: questions.isEmpty
+                  ? const Center(
+                      child: Text('Abhi koi question available nahi hai.'),
+                    )
+                  : ListView.builder(
+                      itemCount: questions.length,
+                      itemBuilder: (context, index) {
+                        final item = questions[index];
+                        final isHr = item["type"] == "HR";
 
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x12000000),
-                          blurRadius: 12,
-                          offset: Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          height: 52,
-                          width: 52,
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: isHr ? const Color(0xFFE7F0FF) : const Color(0xFFE8F7EC),
-                            borderRadius: BorderRadius.circular(16),
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x12000000),
+                                blurRadius: 12,
+                                offset: Offset(0, 4),
+                              ),
+                            ],
                           ),
-                          child: Icon(
-                            isHr ? Icons.person_outline : Icons.memory_rounded,
-                            color: isHr ? const Color(0xFF2F67D8) : const Color(0xFF2E9D57),
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Row(
                             children: [
-                              Text(
-                                item["question"],
-                                style: const TextStyle(
-                                  fontSize: 15.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF1C2434),
+                              Container(
+                                height: 52,
+                                width: 52,
+                                decoration: BoxDecoration(
+                                  color: isHr
+                                      ? const Color(0xFFE7F0FF)
+                                      : const Color(0xFFE8F7EC),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Icon(
+                                  isHr
+                                      ? Icons.person_outline
+                                      : Icons.memory_rounded,
+                                  color: isHr
+                                      ? const Color(0xFF2F67D8)
+                                      : const Color(0xFF2E9D57),
                                 ),
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                item["type"],
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Color(0xFF667085),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item["question"],
+                                      style: const TextStyle(
+                                        fontSize: 15.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF1C2434),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      item["type"],
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: Color(0xFF667085),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
             ),
           ],
         ),
@@ -631,9 +679,12 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
       }
     }
 
-    final lengthScore = wordCount >= 30 ? 40 : (wordCount / 30) * 40;
-    final keywordScore = (matchedKeywords / keywords.length) * 60;
-    final finalScore = lengthScore + keywordScore;
+    final double lengthScore =
+    wordCount >= 30 ? 40.0 : (wordCount / 30) * 40.0;
+    final double keywordScore = keywords.isEmpty
+      ? 0.0
+      : (matchedKeywords / keywords.length) * 60.0;
+    final double finalScore = (lengthScore + keywordScore).toDouble();
 
     String weakArea;
     if (wordCount < 10) {
@@ -658,6 +709,8 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
   }
 
   void submitAnswer() {
+    if (widget.questions.isEmpty) return;
+
     final answer = answerController.text.trim();
     if (answer.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -682,6 +735,15 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
   }
 
   @override
+  void didUpdateWidget(covariant MockInterviewScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.questions.isNotEmpty &&
+        selectedQuestionIndex >= widget.questions.length) {
+      selectedQuestionIndex = 0;
+    }
+  }
+
+  @override
   void dispose() {
     answerController.dispose();
     super.dispose();
@@ -689,6 +751,17 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.questions.isEmpty) {
+      return const SafeArea(
+        child: Center(
+          child: Text(
+            'Abhi koi question available nahi hai.\nPehle Question Bank me jaake question add karo.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
     final selected = widget.questions[selectedQuestionIndex];
 
     return SafeArea(
@@ -752,9 +825,9 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  "Current Question",
-                  style: TextStyle(
+                Text(
+                  selected["type"] ?? "General",
+                  style: const TextStyle(
                     color: Color(0xFFDCE7FF),
                     fontWeight: FontWeight.w600,
                   ),
