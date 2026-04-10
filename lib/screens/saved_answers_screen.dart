@@ -80,6 +80,50 @@ class SavedAnswersScreen extends StatelessWidget {
     );
   }
 
+  Future<void> deleteAllAnswers({
+  required BuildContext context,
+  required String userId,
+}) async {
+  final shouldDelete = await showDialog<bool>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text('Delete All Saved Answers'),
+        content: const Text(
+          'Kya aap sure hain ki aap saare saved answers delete karna chahte ho?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete All'),
+          ),
+        ],
+      );
+    },
+  );
+
+  if (shouldDelete != true) return;
+
+  final snapshot = await FirebaseFirestore.instance
+      .collection('saved_answers')
+      .where('userId', isEqualTo: userId)
+      .get();
+
+  for (final doc in snapshot.docs) {
+    await doc.reference.delete();
+  }
+
+  if (!context.mounted) return;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('All saved answers deleted')),
+  );
+}
+
   Future<void> editAnswer({
     required BuildContext context,
     required String docId,
@@ -210,16 +254,40 @@ class SavedAnswersScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "Your Saved Answers",
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              "Yahan aap apne saved answers dekh, edit aur delete kar sakte ho",
-              style: TextStyle(color: Color(0xFF667085)),
-            ),
-            const SizedBox(height: 18),
-            Expanded(
+  "Your Saved Answers",
+  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+),
+const SizedBox(height: 6),
+const Text(
+  "Yahan aap apne saved answers dekh, edit aur delete kar sakte ho",
+  style: TextStyle(color: Color(0xFF667085)),
+),
+const SizedBox(height: 14),
+SizedBox(
+  width: double.infinity,
+  child: OutlinedButton.icon(
+    onPressed: user == null
+        ? null
+        : () {
+            deleteAllAnswers(
+              context: context,
+              userId: user.uid,
+            );
+          },
+    icon: const Icon(Icons.delete_sweep_outlined),
+    label: const Text('Delete All Saved'),
+    style: OutlinedButton.styleFrom(
+      foregroundColor: const Color(0xFFE4583E),
+      side: const BorderSide(color: Color(0xFFE4583E)),
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+    ),
+  ),
+),
+const SizedBox(height: 18),
+Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
                     .collection('saved_answers')

@@ -14,12 +14,15 @@ import 'package:speech_to_text/speech_to_text.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'screens/profile_screen.dart';
 import 'screens/peer_detail_screen.dart';
+import 'app_settings.dart';
+import 'screens/profile_setup_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await AppSettings.load();
   runApp(const InterviewPrepBuddyApp());
 }
 
@@ -28,30 +31,61 @@ class InterviewPrepBuddyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Prep Buddy',
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF4F7FB),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2346A0),
-          brightness: Brightness.light,
-        ),
-        fontFamily: 'Arial',
-      ),
-      onGenerateRoute: (settings) {
-        final name = settings.name ?? '/';
-        final uri = Uri.parse(name);
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: AppSettings.themeModeNotifier,
+      builder: (context, themeMode, _) {
+        return ValueListenableBuilder<double>(
+          valueListenable: AppSettings.textScaleNotifier,
+          builder: (context, textScale, _) {
+            return MaterialApp(
+              debugShowCheckedModeBanner: false,
+              title: 'Prep Buddy',
+              themeMode: themeMode,
+              theme: ThemeData(
+                useMaterial3: true,
+                scaffoldBackgroundColor: const Color(0xFFF4F7FB),
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: const Color(0xFF2346A0),
+                  brightness: Brightness.light,
+                ),
+                fontFamily: 'Arial',
+              ),
+              darkTheme: ThemeData(
+                useMaterial3: true,
+                scaffoldBackgroundColor: const Color(0xFF0F172A),
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: const Color(0xFF7EA1FF),
+                  brightness: Brightness.dark,
+                ),
+                fontFamily: 'Arial',
+              ),
+              builder: (context, child) {
+                final mediaQuery = MediaQuery.of(context);
+                return MediaQuery(
+                  data: mediaQuery.copyWith(
+                    textScaler: TextScaler.linear(textScale),
+                  ),
+                  child: child!,
+                );
+              },
+              onGenerateRoute: (settings) {
+                final name = settings.name ?? '/';
+                final uri = Uri.parse(name);
 
-        final isJoinRoute =
-            uri.path == '/join' ||
-            (uri.scheme == 'interviewprepbuddy' && uri.host == 'join');
+                final isJoinRoute =
+                    uri.path == '/join' ||
+                    (uri.scheme == 'interviewprepbuddy' &&
+                        uri.host == 'join');
 
-        final code = isJoinRoute ? (uri.queryParameters['code'] ?? '') : null;
+                final code =
+                    isJoinRoute ? (uri.queryParameters['code'] ?? '') : null;
 
-        return MaterialPageRoute(
-          builder: (_) => AppGate(pendingJoinCode: code),
+                return MaterialPageRoute(
+                  builder: (_) => AppGate(pendingJoinCode: code),
+                );
+              },
+            );
+          },
         );
       },
     );
@@ -136,15 +170,41 @@ class _AppGateState extends State<AppGate> {
         final user = snapshot.data;
 
         if (user == null) {
-          return LoginScreen(pendingJoinCode: widget.pendingJoinCode);
-        }
+  return LoginScreen(pendingJoinCode: widget.pendingJoinCode);
+}
 
-        if (widget.pendingJoinCode != null &&
-            widget.pendingJoinCode!.isNotEmpty) {
-          return JoinPeerScreen(code: widget.pendingJoinCode!);
-        }
+return FutureBuilder<DocumentSnapshot>(
+  future: FirebaseFirestore.instance
+      .collection('profiles')
+      .doc(user.uid)
+      .get(),
+  builder: (context, profileSnapshot) {
+    if (profileSnapshot.connectionState == ConnectionState.waiting) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
-        return const MainScreen();
+    final profileData =
+        profileSnapshot.data?.data() as Map<String, dynamic>?;
+
+    final onboardingCompleted =
+        profileData?['onboardingCompleted'] == true;
+
+    if (!onboardingCompleted) {
+      return ProfileSetupScreen(
+        pendingJoinCode: widget.pendingJoinCode,
+      );
+    }
+
+    if (widget.pendingJoinCode != null &&
+        widget.pendingJoinCode!.isNotEmpty) {
+      return JoinPeerScreen(code: widget.pendingJoinCode!);
+    }
+
+    return const MainScreen();
+  },
+);
       },
     );
   }
@@ -158,6 +218,7 @@ class Attempt {
   final int matchedKeywords;
   final int totalKeywords;
   final String weakArea;
+  final double voiceAccuracy;
 
   Attempt({
     required this.question,
@@ -167,6 +228,7 @@ class Attempt {
     required this.matchedKeywords,
     required this.totalKeywords,
     required this.weakArea,
+    required this.voiceAccuracy,
   });
 }
 
@@ -181,6 +243,7 @@ class _MainScreenState extends State<MainScreen> {
   int selectedIndex = 0;
 
   final List<Attempt> attempts = [];
+  int titleAnimationTick = 0;
 
   void addAttempt(Attempt attempt) {
     setState(() {
@@ -188,6 +251,74 @@ class _MainScreenState extends State<MainScreen> {
       selectedIndex = 4;
     });
   }
+
+  void triggerTitleAnimation() {
+  setState(() {
+    titleAnimationTick++;
+  });
+}
+
+Widget buildAnimatedTitle() {
+  return GestureDetector(
+    onTap: triggerTitleAnimation,
+    child: TweenAnimationBuilder<double>(
+      key: ValueKey(titleAnimationTick),
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 700),
+      builder: (context, value, child) {
+        final wave = sin(value * pi);
+
+        return Transform.rotate(
+          angle: wave * 0.06,
+          child: Transform.scale(
+            scale: 1 + (wave * 0.08),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 6,
+              ),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF2346A0), Color(0xFF4D7BFF)],
+                ),
+                borderRadius: BorderRadius.circular(999),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF2346A0).withOpacity(0.22),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Transform.rotate(
+                    angle: wave * 0.5,
+                    child: const Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 18,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Prep Buddy',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -208,7 +339,7 @@ class _MainScreenState extends State<MainScreen> {
         if (snapshot.hasError) {
           return Scaffold(
             appBar: AppBar(
-              title: const Text('Prep Buddy'),
+              title: buildAnimatedTitle(),
               actions: [
   Padding(
     padding: const EdgeInsets.only(right: 12),
@@ -381,7 +512,14 @@ class _MainScreenState extends State<MainScreen> {
         }).toList();
 
         final screens = [
-          HomeScreen(attempts: attempts),
+          HomeScreen(
+  attempts: attempts,
+  onOpenTab: (index) {
+    setState(() {
+      selectedIndex = index;
+    });
+  },
+),
           QuestionBankScreen(questions: questions),
           MockInterviewScreen(
             questions: questions,
@@ -394,7 +532,7 @@ class _MainScreenState extends State<MainScreen> {
 
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Prep Buddy'),
+            title: buildAnimatedTitle(),
             actions: [
   Padding(
     padding: const EdgeInsets.only(right: 12),
@@ -602,8 +740,13 @@ class _MainScreenState extends State<MainScreen> {
 
 class HomeScreen extends StatelessWidget {
   final List<Attempt> attempts;
+  final void Function(int) onOpenTab;
 
-  const HomeScreen({super.key, required this.attempts});
+  const HomeScreen({
+    super.key,
+    required this.attempts,
+    required this.onOpenTab,
+  });
 
   double getAverageScore() {
     if (attempts.isEmpty) return 0;
@@ -621,48 +764,90 @@ class HomeScreen extends StatelessWidget {
     return (total / attempts.length).toStringAsFixed(0);
   }
 
+  double getAverageVoiceAccuracy() {
+    if (attempts.isEmpty) return 0;
+    final total = attempts.fold<double>(
+      0,
+      (sum, item) => sum + item.voiceAccuracy,
+    );
+    return total / attempts.length;
+  }
+
   @override
   Widget build(BuildContext context) {
     final avgScore = getAverageScore();
+    final avgVoice = getAverageVoiceAccuracy();
 
     return SafeArea(
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
         children: [
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(22),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF2346A0), Color(0xFF3B6CE1)],
+                colors: [Color(0xFF18357E), Color(0xFF2346A0), Color(0xFF4D7BFF)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF2346A0).withOpacity(0.22),
+                  blurRadius: 22,
+                  offset: const Offset(0, 10),
+                ),
+              ],
             ),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   "Interview Prep Buddy",
                   style: TextStyle(
-                    fontSize: 28,
+                    fontSize: 30,
                     fontWeight: FontWeight.w800,
                     color: Colors.white,
                   ),
                 ),
-                SizedBox(height: 8),
-                Text(
-                  "Practice interviews, improve confidence, and track your actual performance.",
+                const SizedBox(height: 10),
+                const Text(
+                  "Practice smarter, track your speaking confidence, improve weak areas, and grow with real peer-based interview preparation.",
                   style: TextStyle(
                     fontSize: 15,
                     color: Color(0xFFDDE7FF),
-                    height: 1.4,
+                    height: 1.5,
                   ),
+                ),
+                const SizedBox(height: 18),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _heroChip("Mock Practice"),
+                    _heroChip("Voice Input"),
+                    _heroChip("Saved Answers"),
+                    _heroChip("Peer Connect"),
+                  ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
+          const Text(
+            "Performance Snapshot",
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1C2434),
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            "Tap any card to jump into the relevant section.",
+            style: TextStyle(color: Color(0xFF667085)),
+          ),
+          const SizedBox(height: 14),
           Row(
             children: [
               Expanded(
@@ -670,6 +855,8 @@ class HomeScreen extends StatelessWidget {
                   title: "Attempts",
                   value: "${attempts.length}",
                   colors: const [Color(0xFF4255C4), Color(0xFF5F74E6)],
+                  icon: Icons.flag_rounded,
+                  onTap: () => onOpenTab(4),
                 ),
               ),
               const SizedBox(width: 12),
@@ -678,6 +865,8 @@ class HomeScreen extends StatelessWidget {
                   title: "Confidence",
                   value: "${avgScore.toStringAsFixed(0)}%",
                   colors: const [Color(0xFF0F9D94), Color(0xFF14B8A6)],
+                  icon: Icons.psychology_alt_rounded,
+                  onTap: () => onOpenTab(4),
                 ),
               ),
             ],
@@ -690,6 +879,8 @@ class HomeScreen extends StatelessWidget {
                   title: "Weak Areas",
                   value: "${getWeakAreaCount()}",
                   colors: const [Color(0xFFFF6A3D), Color(0xFFFF8C42)],
+                  icon: Icons.warning_amber_rounded,
+                  onTap: () => onOpenTab(4),
                 ),
               ),
               const SizedBox(width: 12),
@@ -698,50 +889,235 @@ class HomeScreen extends StatelessWidget {
                   title: "Avg Words",
                   value: getAverageWords(),
                   colors: const [Color(0xFF9229B8), Color(0xFFB245D1)],
+                  icon: Icons.notes_rounded,
+                  onTap: () => onOpenTab(2),
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          StatCard(
+            title: "Voice Accuracy",
+            value: "${avgVoice.toStringAsFixed(1)}%",
+            colors: const [Color(0xFF0D8ABC), Color(0xFF35B6E8)],
+            icon: Icons.graphic_eq_rounded,
+            onTap: () => onOpenTab(4),
+          ),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x12000000),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Why This Dashboard Matters",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1C2434),
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  "This home page is your quick overview. You can jump directly into practice, check your analysis, review saved work, or continue peer collaboration from here.",
+                  style: TextStyle(
+                    color: Color(0xFF667085),
+                    height: 1.6,
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 24),
           const Text(
             "Core Features",
             style: TextStyle(
-              fontSize: 21,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1C2434),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            "Each feature is designed to support a different part of your interview preparation journey.",
+            style: TextStyle(color: Color(0xFF667085), height: 1.5),
+          ),
+          const SizedBox(height: 14),
+          FeatureTile(
+            title: "Question Bank",
+            subtitle:
+                "Explore interview questions in one place and prepare systematically with structured practice.",
+            icon: Icons.menu_book_rounded,
+            iconBg: const Color(0xFFE3EEFF),
+            iconColor: const Color(0xFF2B5EC9),
+            onTap: () => onOpenTab(1),
+          ),
+          const SizedBox(height: 12),
+          FeatureTile(
+            title: "Mock Interview",
+            subtitle:
+                "Practice answers by typing or speaking and build more natural, interview-ready responses.",
+            icon: Icons.mic_rounded,
+            iconBg: const Color(0xFFFFE7E2),
+            iconColor: const Color(0xFFE05A37),
+            onTap: () => onOpenTab(2),
+          ),
+          const SizedBox(height: 12),
+          FeatureTile(
+            title: "Saved Answers",
+            subtitle:
+                "Keep your best answers in one place so you can review, edit, and refine them later.",
+            icon: Icons.bookmark_rounded,
+            iconBg: const Color(0xFFE8F1FF),
+            iconColor: const Color(0xFF2346A0),
+            onTap: () => onOpenTab(3),
+          ),
+          const SizedBox(height: 12),
+          FeatureTile(
+            title: "Performance Analysis",
+            subtitle:
+                "Track score, weak areas, keyword match, and voice accuracy to improve over time.",
+            icon: Icons.bar_chart_rounded,
+            iconBg: const Color(0xFFE4F8F4),
+            iconColor: const Color(0xFF14967F),
+            onTap: () => onOpenTab(4),
+          ),
+          const SizedBox(height: 12),
+          FeatureTile(
+            title: "Peer Practice",
+            subtitle:
+                "Connect with friends, view their progress, and continue preparation through chat and peer support.",
+            icon: Icons.people_alt_rounded,
+            iconBg: const Color(0xFFFFF2DF),
+            iconColor: const Color(0xFFE39A1A),
+            onTap: () => onOpenTab(5),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            "How To Use Prep Buddy",
+            style: TextStyle(
+              fontSize: 22,
               fontWeight: FontWeight.w700,
               color: Color(0xFF1C2434),
             ),
           ),
           const SizedBox(height: 14),
-          const FeatureTile(
-            title: "Question Bank",
-            subtitle: "HR aur Technical questions ko structured way me practice karo",
-            icon: Icons.menu_book_rounded,
-            iconBg: Color(0xFFE3EEFF),
-            iconColor: Color(0xFF2B5EC9),
+          _infoStep(
+            number: "1",
+            title: "Start with questions",
+            subtitle:
+                "Go through the question bank and understand the kind of answers companies expect.",
           ),
           const SizedBox(height: 12),
-          const FeatureTile(
-            title: "Mock Interview",
-            subtitle: "Question select karke answer submit karo aur feedback lo",
-            icon: Icons.mic_rounded,
-            iconBg: Color(0xFFFFE7E2),
-            iconColor: Color(0xFFE05A37),
+          _infoStep(
+            number: "2",
+            title: "Practice your answers",
+            subtitle:
+                "Use mock interview mode to answer by text or voice and improve speaking confidence.",
           ),
           const SizedBox(height: 12),
-          const FeatureTile(
-            title: "Performance Analysis",
-            subtitle: "Real attempts ke basis par score aur weak areas dekho",
-            icon: Icons.bar_chart_rounded,
-            iconBg: Color(0xFFE4F8F4),
-            iconColor: Color(0xFF14967F),
+          _infoStep(
+            number: "3",
+            title: "Review your growth",
+            subtitle:
+                "Open analysis and saved answers to understand progress and revisit weak points.",
           ),
           const SizedBox(height: 12),
-          const FeatureTile(
-            title: "Peer Practice",
-            subtitle: "Friends ke saath interview practice connect mode me karo",
-            icon: Icons.people_alt_rounded,
-            iconBg: Color(0xFFFFF2DF),
-            iconColor: Color(0xFFE39A1A),
+          _infoStep(
+            number: "4",
+            title: "Practice with peers",
+            subtitle:
+                "Connect with another user, compare progress, and continue preparation together.",
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _heroChip(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withOpacity(0.18)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _infoStep({
+    required String number,
+    required String title,
+    required String subtitle,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x12000000),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: const Color(0xFFE8EEFF),
+            child: Text(
+              number,
+              style: const TextStyle(
+                color: Color(0xFF2346A0),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1C2434),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: Color(0xFF667085),
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -753,55 +1129,64 @@ class StatCard extends StatelessWidget {
   final String title;
   final String value;
   final List<Color> colors;
+  final IconData icon;
+  final VoidCallback? onTap;
 
   const StatCard({
     super.key,
     required this.title,
     required this.value,
     required this.colors,
+    required this.icon,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 126,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: colors,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 126,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: colors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: [
+            BoxShadow(
+              color: colors.first.withOpacity(0.22),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: colors.first.withOpacity(0.22),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: Colors.white, size: 24),
+            const Spacer(),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 15,
-              color: Colors.white70,
-              fontWeight: FontWeight.w500,
+            const SizedBox(height: 6),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.white70,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -813,6 +1198,7 @@ class FeatureTile extends StatelessWidget {
   final IconData icon;
   final Color iconBg;
   final Color iconColor;
+  final VoidCallback? onTap;
 
   const FeatureTile({
     super.key,
@@ -821,60 +1207,70 @@ class FeatureTile extends StatelessWidget {
     required this.icon,
     required this.iconBg,
     required this.iconColor,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 14,
-            offset: Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            height: 54,
-            width: 54,
-            decoration: BoxDecoration(
-              color: iconBg,
-              borderRadius: BorderRadius.circular(16),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x14000000),
+              blurRadius: 14,
+              offset: Offset(0, 6),
             ),
-            child: Icon(icon, color: iconColor, size: 28),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1C2434),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 13.5,
-                    color: Color(0xFF667085),
-                    height: 1.35,
-                  ),
-                ),
-              ],
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              height: 54,
+              width: 54,
+              decoration: BoxDecoration(
+                color: iconBg,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(icon, color: iconColor, size: 28),
             ),
-          ),
-        ],
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1C2434),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      color: Color(0xFF667085),
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 16,
+              color: Color(0xFF98A2B3),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1152,6 +1548,7 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
       matchedKeywords: matchedKeywords,
       totalKeywords: keywords.length,
       weakArea: weakArea,
+      voiceAccuracy: speechConfidence * 100,
     );
   }
 
@@ -1787,11 +2184,14 @@ class _PeerPracticeScreenState extends State<PeerPracticeScreen> {
   bool loading = true;
   String? currentUserId;
   String currentUserName = '';
+  String currentUserPhotoUrl = '';
+  SharedPreferences? peerPrefs;
 
   @override
   void initState() {
     super.initState();
     initUser();
+    loadPeerPrefs();
   }
 
   Future<void> initUser() async {
@@ -1800,9 +2200,131 @@ class _PeerPracticeScreenState extends State<PeerPracticeScreen> {
     setState(() {
       currentUserId = user?.uid;
       currentUserName = user?.displayName ?? user?.email ?? 'User';
+      currentUserPhotoUrl = user?.photoURL ?? '';
       loading = false;
     });
   }
+
+  Future<void> loadPeerPrefs() async {
+  peerPrefs = await SharedPreferences.getInstance();
+  if (mounted) {
+    setState(() {});
+  }
+}
+
+String getDisplayPeerName(String peerUserId, String fallbackName) {
+  final alias = peerPrefs?.getString('peer_alias_$peerUserId') ?? '';
+  final trimmedAlias = alias.trim();
+  return trimmedAlias.isEmpty ? fallbackName : trimmedAlias;
+}
+
+Future<void> renamePeerLocally({
+  required String peerUserId,
+  required String originalName,
+}) async {
+  final controller = TextEditingController(
+    text: getDisplayPeerName(peerUserId, originalName),
+  );
+
+  final newName = await showDialog<String>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text('Rename Peer'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'Peer Name',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context, controller.text.trim());
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      );
+    },
+  );
+
+  if (newName == null) return;
+
+  if (newName.isEmpty || newName == originalName) {
+    await peerPrefs?.remove('peer_alias_$peerUserId');
+  } else {
+    await peerPrefs?.setString('peer_alias_$peerUserId', newName);
+  }
+
+  if (mounted) {
+    setState(() {});
+  }
+}
+
+Future<void> deletePeer({
+  required String inviteDocId,
+  required String peerUserId,
+}) async {
+  final shouldDelete = await showDialog<bool>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text('Delete Peer'),
+        content: const Text(
+          'Agar aap is peer ko delete karte ho to dono devices se ye connection remove ho jayega.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      );
+    },
+  );
+
+  if (shouldDelete != true) return;
+
+  await FirebaseFirestore.instance
+      .collection('peer_invites')
+      .doc(inviteDocId)
+      .update({
+    'status': 'removed',
+    'removedBy': currentUserId,
+    'removedAt': FieldValue.serverTimestamp(),
+  });
+
+  await peerPrefs?.remove('peer_alias_$peerUserId');
+
+  if (!mounted) return;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Peer removed successfully')),
+  );
+}
+
+  String buildChatId(String userA, String userB) {
+  final users = [userA, userB]..sort();
+  return '${users[0]}_${users[1]}';
+}
+
+String formatLastMessageTime(Timestamp? timestamp) {
+  if (timestamp == null) return '';
+  final date = timestamp.toDate();
+  final hour = date.hour.toString().padLeft(2, '0');
+  final minute = date.minute.toString().padLeft(2, '0');
+  return '$hour:$minute';
+}
 
   String generateCode() {
     final millis = DateTime.now().millisecondsSinceEpoch.toString();
@@ -1818,8 +2340,10 @@ class _PeerPracticeScreenState extends State<PeerPracticeScreen> {
       'code': code,
       'ownerId': currentUserId,
       'ownerName': currentUserName,
+      'ownerPhotoUrl': currentUserPhotoUrl,
       'joinedUserId': null,
       'joinedName': null,
+      'joinedPhotoUrl': null,
       'status': 'pending',
       'createdAt': FieldValue.serverTimestamp(),
     });
@@ -1913,6 +2437,15 @@ class _PeerPracticeScreenState extends State<PeerPracticeScreen> {
     ? (data['joinedUserId'] ?? '')
     : (data['ownerId'] ?? '');
 
+final String invitePhotoUrl = amOwner
+    ? (data['joinedPhotoUrl'] ?? '')
+    : (data['ownerPhotoUrl'] ?? '');
+
+final String displayPeerName = getDisplayPeerName(
+  peerUserId,
+  peerName,
+);
+
 return FutureBuilder<DocumentSnapshot>(
   future: FirebaseFirestore.instance
       .collection('profiles')
@@ -1922,79 +2455,163 @@ return FutureBuilder<DocumentSnapshot>(
     final profileData =
         profileSnapshot.data?.data() as Map<String, dynamic>?;
 
-    final peerPhotoUrl = profileData?['photoUrl'] ?? '';
-    final peerLocalPhotoPath = profileData?['localPhotoPath'] ?? '';
+    final peerPhotoUrl =
+        (profileData?['photoUrl'] ?? invitePhotoUrl).toString();
 
-    return GestureDetector(
-      onTap: () {
-        if (peerUserId.toString().isEmpty) return;
+    final chatId = buildChatId(currentUserId ?? '', peerUserId);
 
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => PeerDetailScreen(
-              peerUserId: peerUserId,
-              peerName: peerName,
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('peer_chats')
+          .doc(chatId)
+          .snapshots(),
+      builder: (context, chatSnapshot) {
+        final chatData =
+            chatSnapshot.data?.data() as Map<String, dynamic>?;
+
+        final lastMessage =
+            (chatData?['lastMessage'] ?? '').toString().trim();
+
+        final lastMessageAt =
+            chatData?['lastMessageAt'] as Timestamp?;
+
+        final previewText = lastMessage.isEmpty
+            ? 'Tap to view profile and start chatting'
+            : lastMessage;
+
+        return GestureDetector(
+          onTap: () {
+            if (peerUserId.toString().isEmpty) return;
+
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PeerDetailScreen(
+                  peerUserId: peerUserId,
+                  peerName: displayPeerName,
+                ),
+              ),
+            );
+          },
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x12000000),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundImage: peerPhotoUrl.isNotEmpty
+                      ? NetworkImage(peerPhotoUrl)
+                      : null,
+                  child: peerPhotoUrl.isEmpty
+                      ? Text(
+                          displayPeerName.isNotEmpty
+                            ? displayPeerName[0].toUpperCase()
+                            : 'U',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+  children: [
+    Expanded(
+      child: Text(
+        displayPeerName,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    ),
+    if (lastMessageAt != null)
+      Padding(
+        padding: const EdgeInsets.only(right: 4),
+        child: Text(
+          formatLastMessageTime(lastMessageAt),
+          style: const TextStyle(
+            color: Color(0xFF98A2B3),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    PopupMenuButton<String>(
+      onSelected: (value) {
+        if (value == 'rename') {
+          renamePeerLocally(
+            peerUserId: peerUserId,
+            originalName: peerName,
+          );
+        } else if (value == 'delete') {
+          deletePeer(
+            inviteDocId: doc.id,
+            peerUserId: peerUserId,
+          );
+        }
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem(
+          value: 'rename',
+          child: Text('Rename'),
+        ),
+        PopupMenuItem(
+          value: 'delete',
+          child: Text('Delete'),
+        ),
+      ],
+    ),
+  ],
+),
+                      const SizedBox(height: 4),
+                      Text(
+                        peerRole,
+                        style: const TextStyle(
+                          color: Color(0xFF667085),
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        previewText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: lastMessage.isEmpty
+                              ? const Color(0xFF98A2B3)
+                              : const Color(0xFF2346A0),
+                          fontSize: 13.5,
+                          fontWeight: lastMessage.isEmpty
+                              ? FontWeight.w500
+                              : FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
             ),
           ),
         );
       },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x12000000),
-              blurRadius: 12,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 24,
-              backgroundImage: peerPhotoUrl.toString().isNotEmpty
-                  ? NetworkImage(peerPhotoUrl)
-                  : null,
-              child: peerPhotoUrl.toString().isEmpty
-                  ? Text(
-                      peerName.isNotEmpty
-                          ? peerName[0].toUpperCase()
-                          : 'U',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    peerName,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    peerRole,
-                    style: const TextStyle(
-                      color: Color(0xFF667085),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right_rounded),
-          ],
-        ),
-      ),
     );
   },
 );

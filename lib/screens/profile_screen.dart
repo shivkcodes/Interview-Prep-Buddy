@@ -11,6 +11,7 @@ import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'settings_screen.dart';
 
 class GoogleAuthClient extends http.BaseClient {
   final Map<String, String> _headers;
@@ -766,6 +767,29 @@ Widget build(BuildContext context) {
               child: Text(saving ? 'Saving...' : 'Save Profile'),
             ),
           ),
+          const SizedBox(height: 14),
+SizedBox(
+  height: 54,
+  child: OutlinedButton.icon(
+    onPressed: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const SettingsScreen(),
+        ),
+      );
+    },
+    icon: const Icon(Icons.settings_outlined),
+    label: const Text('Open Settings'),
+    style: OutlinedButton.styleFrom(
+      foregroundColor: const Color(0xFF2346A0),
+      side: const BorderSide(color: Color(0xFF2346A0)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+      ),
+    ),
+  ),
+),
           const SizedBox(height: 14),
           SizedBox(
             height: 54,

@@ -39,14 +39,15 @@ class _JoinPeerScreenState extends State<JoinPeerScreen> {
     });
 
     await FirebaseFirestore.instance
-        .collection('peer_invites')
-        .doc(widget.code)
-        .update({
-      'joinedName': name,
-      'joinedUserId': currentUser.uid,
-      'status': 'joined',
-      'joinedAt': FieldValue.serverTimestamp(),
-    });
+    .collection('peer_invites')
+    .doc(widget.code)
+    .update({
+  'joinedName': name,
+  'joinedUserId': currentUser.uid,
+  'joinedPhotoUrl': currentUser.photoURL ?? '',
+  'status': 'joined',
+  'joinedAt': FieldValue.serverTimestamp(),
+});
 
     if (!mounted) return;
 

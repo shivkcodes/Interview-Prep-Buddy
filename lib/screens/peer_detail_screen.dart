@@ -209,21 +209,116 @@ const SizedBox(height: 24),
                   const SizedBox(height: 14),
 
                   if (linkedin.toString().isNotEmpty)
-                    _linkButton('Open LinkedIn', linkedin),
-                  if (github.toString().isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    _linkButton('Open GitHub', github),
-                  ],
-                  if (resumeUrl.toString().isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    _linkButton(
-                      resumeName.toString().isNotEmpty
-                          ? 'Open Resume'
-                          : 'Open Resume',
-                      resumeUrl,
-                    ),
-                  ],
+  _linkButton('Open LinkedIn', linkedin),
+if (github.toString().isNotEmpty) ...[
+  const SizedBox(height: 10),
+  _linkButton('Open GitHub', github),
+],
 
+const SizedBox(height: 24),
+const Text(
+  'Resume',
+  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+),
+const SizedBox(height: 14),
+
+if (resumeUrl.toString().isNotEmpty)
+  Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x12000000),
+          blurRadius: 12,
+          offset: Offset(0, 4),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(
+              Icons.picture_as_pdf_rounded,
+              color: Color(0xFFE4583E),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                resumeName.toString().isNotEmpty
+                    ? resumeName
+                    : 'Uploaded Resume',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1C2434),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Text(
+          resumeUrl,
+          style: const TextStyle(
+            color: Color(0xFF667085),
+            fontSize: 13,
+            height: 1.5,
+          ),
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () async {
+              final uri = Uri.parse(resumeUrl);
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(
+                  uri,
+                  mode: LaunchMode.externalApplication,
+                );
+              }
+            },
+            icon: const Icon(Icons.open_in_new),
+            label: const Text('Open Resume'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2346A0),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  )
+else
+  Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x12000000),
+          blurRadius: 12,
+          offset: Offset(0, 4),
+        ),
+      ],
+    ),
+    child: const Text(
+      'This peer has not uploaded a resume yet.',
+      style: TextStyle(
+        color: Color(0xFF667085),
+        height: 1.5,
+      ),
+    ),
+  ),
                   const SizedBox(height: 24),
                   const Text(
                     'Recent Saved Answers',
