@@ -13,6 +13,7 @@ import 'screens/saved_answers_screen.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'screens/profile_screen.dart';
+import 'screens/peer_detail_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -57,13 +58,72 @@ class InterviewPrepBuddyApp extends StatelessWidget {
   }
 }
 
-class AppGate extends StatelessWidget {
+class AppGate extends StatefulWidget {
   final String? pendingJoinCode;
 
   const AppGate({super.key, this.pendingJoinCode});
 
   @override
+  State<AppGate> createState() => _AppGateState();
+}
+
+class _AppGateState extends State<AppGate> {
+  bool hasShownInstallMessage = false;
+
+  @override
+  void initState() {
+    super.initState();
+    checkFirstLaunchMessage();
+  }
+
+  Future<void> checkFirstLaunchMessage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasSeenInstallMessage =
+        prefs.getBool('has_seen_peer_install_message') ?? false;
+
+    if (!hasSeenInstallMessage) {
+      await prefs.setBool('has_seen_peer_install_message', true);
+
+      if (!mounted) return;
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showDialog(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: const Text('Peer Connection'),
+              content: const Text(
+                'Tap the link again to connect with your peer.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  child: const Text('OK'),
+                ),
+              ],
+            );
+          },
+        );
+      });
+    }
+
+    if (mounted) {
+      setState(() {
+        hasShownInstallMessage = true;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (!hasShownInstallMessage) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
@@ -76,11 +136,12 @@ class AppGate extends StatelessWidget {
         final user = snapshot.data;
 
         if (user == null) {
-          return LoginScreen(pendingJoinCode: pendingJoinCode);
+          return LoginScreen(pendingJoinCode: widget.pendingJoinCode);
         }
 
-        if (pendingJoinCode != null && pendingJoinCode!.isNotEmpty) {
-          return JoinPeerScreen(code: pendingJoinCode!);
+        if (widget.pendingJoinCode != null &&
+            widget.pendingJoinCode!.isNotEmpty) {
+          return JoinPeerScreen(code: widget.pendingJoinCode!);
         }
 
         return const MainScreen();
@@ -130,6 +191,8 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currentUser = FirebaseAuth.instance.currentUser;
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('questions')
@@ -147,13 +210,159 @@ class _MainScreenState extends State<MainScreen> {
             appBar: AppBar(
               title: const Text('Prep Buddy'),
               actions: [
-                IconButton(
-                  onPressed: () async {
-                    await FirebaseAuth.instance.signOut();
-                  },
-                  icon: const Icon(Icons.logout),
+  Padding(
+    padding: const EdgeInsets.only(right: 12),
+    child: GestureDetector(
+      onTap: () {
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.white,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          builder: (context) {
+            final userName = currentUser?.displayName ?? 'User';
+            final userEmail = currentUser?.email ?? '';
+            final userPhoto = currentUser?.photoURL;
+            final initial = userName.isNotEmpty
+                ? userName.trim().substring(0, 1).toUpperCase()
+                : 'U';
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD0D5DD),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    CircleAvatar(
+                      radius: 34,
+                      backgroundColor: const Color(0xFFE8EEFF),
+                      backgroundImage:
+                          userPhoto != null ? NetworkImage(userPhoto) : null,
+                      child: userPhoto == null
+                          ? Text(
+                              initial,
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF2346A0),
+                              ),
+                            )
+                          : null,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      userName,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1C2434),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      userEmail,
+                      style: const TextStyle(
+                        color: Color(0xFF667085),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ProfileScreen(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.person_outline),
+                        label: const Text('Open Profile'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          Navigator.pop(context);
+                          await FirebaseAuth.instance.signOut();
+                          if (!context.mounted) return;
+                          Navigator.of(context)
+                              .pushNamedAndRemoveUntil('/', (route) => false);
+                        },
+                        icon: const Icon(Icons.logout),
+                        label: const Text('Sign Out'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFE4583E),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
+            );
+          },
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: const Color(0xFFDCE7FF),
+            width: 2,
+          ),
+        ),
+        child: CircleAvatar(
+          radius: 18,
+          backgroundColor: const Color(0xFFE8EEFF),
+          backgroundImage: currentUser?.photoURL != null
+              ? NetworkImage(currentUser!.photoURL!)
+              : null,
+          child: currentUser?.photoURL == null
+              ? Text(
+                  (currentUser?.displayName?.isNotEmpty ?? false)
+                      ? currentUser!.displayName!
+                          .trim()
+                          .substring(0, 1)
+                          .toUpperCase()
+                      : 'U',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF2346A0),
+                  ),
+                )
+              : null,
+        ),
+      ),
+    ),
+  ),
+],
+
             ),
             body: Center(
               child: Text('Questions load karne me error aaya: ${snapshot.error}'),
@@ -181,20 +390,165 @@ class _MainScreenState extends State<MainScreen> {
           const SavedAnswersScreen(),
           const PerformanceScreen(),
           const PeerPracticeScreen(),
-          const ProfileScreen(),
         ];
 
         return Scaffold(
           appBar: AppBar(
             title: const Text('Prep Buddy'),
             actions: [
-              IconButton(
-                onPressed: () async {
-                  await FirebaseAuth.instance.signOut();
-                },
-                icon: const Icon(Icons.logout),
+  Padding(
+    padding: const EdgeInsets.only(right: 12),
+    child: GestureDetector(
+      onTap: () {
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.white,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          builder: (context) {
+            final userName = currentUser?.displayName ?? 'User';
+            final userEmail = currentUser?.email ?? '';
+            final userPhoto = currentUser?.photoURL;
+            final initial = userName.isNotEmpty
+                ? userName.trim().substring(0, 1).toUpperCase()
+                : 'U';
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD0D5DD),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    CircleAvatar(
+                      radius: 34,
+                      backgroundColor: const Color(0xFFE8EEFF),
+                      backgroundImage:
+                          userPhoto != null ? NetworkImage(userPhoto) : null,
+                      child: userPhoto == null
+                          ? Text(
+                              initial,
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF2346A0),
+                              ),
+                            )
+                          : null,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      userName,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1C2434),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      userEmail,
+                      style: const TextStyle(
+                        color: Color(0xFF667085),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ProfileScreen(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.person_outline),
+                        label: const Text('Open Profile'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          Navigator.pop(context);
+                          await FirebaseAuth.instance.signOut();
+                          if (!context.mounted) return;
+                          Navigator.of(context)
+                              .pushNamedAndRemoveUntil('/', (route) => false);
+                        },
+                        icon: const Icon(Icons.logout),
+                        label: const Text('Sign Out'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFE4583E),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ],
+            );
+          },
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: const Color(0xFFDCE7FF),
+            width: 2,
+          ),
+        ),
+        child: CircleAvatar(
+          radius: 18,
+          backgroundColor: const Color(0xFFE8EEFF),
+          backgroundImage: currentUser?.photoURL != null
+              ? NetworkImage(currentUser!.photoURL!)
+              : null,
+          child: currentUser?.photoURL == null
+              ? Text(
+                  (currentUser?.displayName?.isNotEmpty ?? false)
+                      ? currentUser!.displayName!
+                          .trim()
+                          .substring(0, 1)
+                          .toUpperCase()
+                      : 'U',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF2346A0),
+                  ),
+                )
+              : null,
+        ),
+      ),
+    ),
+  ),
+],
+
           ),
           body: screens[selectedIndex],
           bottomNavigationBar: NavigationBar(
@@ -237,11 +591,6 @@ class _MainScreenState extends State<MainScreen> {
                 icon: Icon(Icons.people_outline),
                 selectedIcon: Icon(Icons.people),
                 label: "Peers",
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.person_outline),
-                selectedIcon: Icon(Icons.person),
-                label: "Profile",
               ),
             ],
           ),
@@ -1435,26 +1784,22 @@ class PeerPracticeScreen extends StatefulWidget {
 }
 
 class _PeerPracticeScreenState extends State<PeerPracticeScreen> {
-  String? ownerId;
   bool loading = true;
+  String? currentUserId;
+  String currentUserName = '';
 
   @override
   void initState() {
     super.initState();
-    initOwner();
+    initUser();
   }
 
-  Future<void> initOwner() async {
-    final prefs = await SharedPreferences.getInstance();
-    String? savedOwnerId = prefs.getString('owner_id');
-
-    if (savedOwnerId == null) {
-      savedOwnerId = 'owner_${DateTime.now().millisecondsSinceEpoch}';
-      await prefs.setString('owner_id', savedOwnerId);
-    }
+  Future<void> initUser() async {
+    final user = FirebaseAuth.instance.currentUser;
 
     setState(() {
-      ownerId = savedOwnerId;
+      currentUserId = user?.uid;
+      currentUserName = user?.displayName ?? user?.email ?? 'User';
       loading = false;
     });
   }
@@ -1465,13 +1810,15 @@ class _PeerPracticeScreenState extends State<PeerPracticeScreen> {
   }
 
   Future<void> addPerson() async {
-    if (ownerId == null) return;
+    if (currentUserId == null) return;
 
     final code = generateCode();
 
     await FirebaseFirestore.instance.collection('peer_invites').doc(code).set({
       'code': code,
-      'ownerId': ownerId,
+      'ownerId': currentUserId,
+      'ownerName': currentUserName,
+      'joinedUserId': null,
       'joinedName': null,
       'status': 'pending',
       'createdAt': FieldValue.serverTimestamp(),
@@ -1480,7 +1827,7 @@ class _PeerPracticeScreenState extends State<PeerPracticeScreen> {
     final link = 'https://interview-prep-buddy-1e370.web.app/join?code=$code';
 
     await Share.share(
-      'Interview Prep Buddy me connect hone ke liye is link ko open karo:\n$link',
+      'Prep Buddy me connect hone ke liye is link ko open karo:\n$link',
     );
   }
 
@@ -1518,7 +1865,6 @@ class _PeerPracticeScreenState extends State<PeerPracticeScreen> {
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('peer_invites')
-                .where('ownerId', isEqualTo: ownerId)
                 .snapshots(),
             builder: (context, snapshot) {
               if (!snapshot.hasData) {
@@ -1527,12 +1873,16 @@ class _PeerPracticeScreenState extends State<PeerPracticeScreen> {
 
               final allDocs = snapshot.data!.docs;
 
-              final joinedDocs = allDocs.where((doc) {
+              final connectedDocs = allDocs.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
-                return data['status'] == 'joined' && data['joinedName'] != null;
+                return data['status'] == 'joined' &&
+                    (
+                      data['ownerId'] == currentUserId ||
+                      data['joinedUserId'] == currentUserId
+                    );
               }).toList();
 
-              if (joinedDocs.isEmpty) {
+              if (connectedDocs.isEmpty) {
                 return Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -1546,42 +1896,108 @@ class _PeerPracticeScreenState extends State<PeerPracticeScreen> {
               }
 
               return Column(
-                children: joinedDocs.map((doc) {
+                children: connectedDocs.map((doc) {
                   final data = doc.data() as Map<String, dynamic>;
 
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x12000000),
-                          blurRadius: 12,
-                          offset: Offset(0, 4),
-                        ),
-                      ],
+                  final bool amOwner = data['ownerId'] == currentUserId;
+
+                  final String peerName = amOwner
+                      ? (data['joinedName'] ?? 'Unknown Peer')
+                      : (data['ownerName'] ?? 'Unknown Peer');
+
+                  final String peerRole = amOwner
+                      ? 'Connected Peer'
+                      : 'Peer Who Invited You';
+
+                  final String peerUserId = amOwner
+    ? (data['joinedUserId'] ?? '')
+    : (data['ownerId'] ?? '');
+
+return FutureBuilder<DocumentSnapshot>(
+  future: FirebaseFirestore.instance
+      .collection('profiles')
+      .doc(peerUserId)
+      .get(),
+  builder: (context, profileSnapshot) {
+    final profileData =
+        profileSnapshot.data?.data() as Map<String, dynamic>?;
+
+    final peerPhotoUrl = profileData?['photoUrl'] ?? '';
+    final peerLocalPhotoPath = profileData?['localPhotoPath'] ?? '';
+
+    return GestureDetector(
+      onTap: () {
+        if (peerUserId.toString().isEmpty) return;
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PeerDetailScreen(
+              peerUserId: peerUserId,
+              peerName: peerName,
+            ),
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x12000000),
+              blurRadius: 12,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 24,
+              backgroundImage: peerPhotoUrl.toString().isNotEmpty
+                  ? NetworkImage(peerPhotoUrl)
+                  : null,
+              child: peerPhotoUrl.toString().isEmpty
+                  ? Text(
+                      peerName.isNotEmpty
+                          ? peerName[0].toUpperCase()
+                          : 'U',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    peerName,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
                     ),
-                    child: Row(
-                      children: [
-                        const CircleAvatar(
-                          radius: 24,
-                          child: Icon(Icons.person),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Text(
-                            data['joinedName'],
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    peerRole,
+                    style: const TextStyle(
+                      color: Color(0xFF667085),
                     ),
-                  );
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded),
+          ],
+        ),
+      ),
+    );
+  },
+);
                 }).toList(),
               );
             },

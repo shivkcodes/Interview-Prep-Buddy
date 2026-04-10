@@ -10,6 +10,7 @@ import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 
 class GoogleAuthClient extends http.BaseClient {
   final Map<String, String> _headers;
@@ -65,6 +66,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String resumeName = '';
   String resumeDriveFileId = '';
   String resumeUploadedAt = '';
+  String localPhotoPath = '';
 
   @override
   void initState() {
@@ -99,6 +101,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       linkedinController.text = data?['linkedin'] ?? '';
       githubController.text = data?['github'] ?? '';
       photoUrl = data?['photoUrl'] ?? user.photoURL ?? '';
+      localPhotoPath = data?['localPhotoPath'] ?? '';
       resumeUrl = data?['resumeUrl'] ?? '';
       resumeName = data?['resumeName'] ?? '';
       resumeDriveFileId = data?['resumeDriveFileId'] ?? '';
@@ -347,6 +350,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'linkedin': linkedinController.text.trim(),
         'github': githubController.text.trim(),
         'photoUrl': photoUrl,
+        'localPhotoPath': localPhotoPath,
         'resumeUrl': resumeUrl,
         'resumeName': resumeName,
         'resumeDriveFileId': resumeDriveFileId,
@@ -370,6 +374,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     }
   }
+
+  Future<void> pickProfilePhoto() async {
+  try {
+    final picker = ImagePicker();
+
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 75,
+    );
+
+    if (pickedFile == null) return;
+
+    setState(() {
+      localPhotoPath = pickedFile.path;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Profile photo selected')),
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Photo select nahi hui: $e')),
+    );
+  }
+}
 
   Widget buildField({
     required TextEditingController controller,
@@ -418,14 +447,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    if (loading) {
-      return const SafeArea(
+Widget build(BuildContext context) {
+  if (loading) {
+    return const Scaffold(
+      body: SafeArea(
         child: Center(child: CircularProgressIndicator()),
-      );
-    }
+      ),
+    );
+  }
 
-    return SafeArea(
+  return Scaffold(
+    appBar: AppBar(
+      title: const Text('Profile'),
+    ),
+    body: SafeArea(
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
         children: [
@@ -440,10 +475,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 20),
           Center(
-            child: CircleAvatar(
-              radius: 46,
-              backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
-              child: photoUrl.isEmpty ? const Icon(Icons.person, size: 42) : null,
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 46,
+                  backgroundImage: localPhotoPath.isNotEmpty
+                      ? FileImage(File(localPhotoPath))
+                      : (photoUrl.isNotEmpty
+                              ? NetworkImage(photoUrl)
+                              : null)
+                          as ImageProvider<Object>?,
+                  child: localPhotoPath.isEmpty && photoUrl.isEmpty
+                      ? const Icon(Icons.person, size: 42)
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: pickProfilePhoto,
+                  icon: const Icon(Icons.photo_library_outlined),
+                  label: const Text('Upload Profile Photo'),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 20),
@@ -486,218 +538,218 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 14),
           buildField(controller: linkedinController, label: 'LinkedIn URL'),
           buildField(controller: githubController, label: 'GitHub URL'),
-          
+
           Container(
-  padding: const EdgeInsets.all(16),
-  decoration: BoxDecoration(
-    color: Colors.white,
-    borderRadius: BorderRadius.circular(20),
-    boxShadow: const [
-      BoxShadow(
-        color: Color(0x12000000),
-        blurRadius: 12,
-        offset: Offset(0, 4),
-      ),
-    ],
-  ),
-  child: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      const Row(
-        children: [
-          Icon(Icons.description_rounded, color: Color(0xFF2346A0)),
-          SizedBox(width: 8),
-          Text(
-            'Resume',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
-              color: Color(0xFF1C2434),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x12000000),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 14),
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF4F7FB),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE3E8F2)),
-        ),
-        child: resumeUrl.isEmpty
-            ? const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'No resume uploaded',
-                    style: TextStyle(
-                      color: Color(0xFF1C2434),
-                      fontWeight: FontWeight.w600,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.description_rounded, color: Color(0xFF2346A0)),
+                    SizedBox(width: 8),
+                    Text(
+                      'Resume',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        color: Color(0xFF1C2434),
+                      ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF4F7FB),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE3E8F2)),
                   ),
-                  SizedBox(height: 6),
-                  Text(
-                    'Aapka uploaded resume yahan dikhai dega.',
-                    style: TextStyle(color: Color(0xFF667085)),
-                  ),
-                ],
-              )
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                  child: resumeUrl.isEmpty
+                      ? const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'No resume uploaded',
+                              style: TextStyle(
+                                color: Color(0xFF1C2434),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            SizedBox(height: 6),
+                            Text(
+                              'Aapka uploaded resume yahan dikhai dega.',
+                              style: TextStyle(color: Color(0xFF667085)),
+                            ),
+                          ],
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.picture_as_pdf_rounded,
+                                  color: Color(0xFFE4583E),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    resumeName,
+                                    style: const TextStyle(
+                                      color: Color(0xFF1C2434),
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (resumeUploadedAt.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE8EEFF),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  'Uploaded: $resumeUploadedAt',
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    color: Color(0xFF2346A0),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 10),
+                            Text(
+                              resumeUrl,
+                              style: const TextStyle(
+                                color: Color(0xFF667085),
+                                fontSize: 13,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+                const SizedBox(height: 14),
+                if (resumeUrl.isNotEmpty) ...[
                   Row(
                     children: [
-                      const Icon(
-                        Icons.picture_as_pdf_rounded,
-                        color: Color(0xFFE4583E),
-                      ),
-                      const SizedBox(width: 8),
                       Expanded(
-                        child: Text(
-                          resumeName,
-                          style: const TextStyle(
-                            color: Color(0xFF1C2434),
-                            fontWeight: FontWeight.w700,
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final uri = Uri.parse(resumeUrl);
+                            if (await canLaunchUrl(uri)) {
+                              await launchUrl(
+                                uri,
+                                mode: LaunchMode.externalApplication,
+                              );
+                            } else {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Resume link open nahi ho rahi'),
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.open_in_new),
+                          label: const Text('Open'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            await Clipboard.setData(
+                              ClipboardData(text: resumeUrl),
+                            );
+
+                            if (!mounted) return;
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Resume link copied')),
+                            );
+                          },
+                          icon: const Icon(Icons.copy_rounded),
+                          label: const Text('Copy Link'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: deleteResume,
+                          icon: const Icon(Icons.delete_outline),
+                          label: const Text('Delete'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFE4583E),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: uploadingResume ? null : uploadResumeToDrive,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2346A0),
+                            foregroundColor: Colors.white,
+                          ),
+                          icon: const Icon(Icons.upload_file),
+                          label: Text(
+                            uploadingResume ? 'Uploading...' : 'Re-upload',
                           ),
                         ),
                       ),
                     ],
                   ),
-                  if (resumeUploadedAt.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE8EEFF),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        'Uploaded: $resumeUploadedAt',
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          color: Color(0xFF2346A0),
-                          fontWeight: FontWeight.w600,
+                ] else ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: uploadingResume ? null : uploadResumeToDrive,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2346A0),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
                         ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                    ),
-                  ],
-                  const SizedBox(height: 10),
-                  Text(
-                    resumeUrl,
-                    style: const TextStyle(
-                      color: Color(0xFF667085),
-                      fontSize: 13,
-                      height: 1.4,
+                      icon: const Icon(Icons.upload_file),
+                      label: Text(
+                        uploadingResume
+                            ? 'Uploading...'
+                            : 'Upload Resume to Google Drive',
+                      ),
                     ),
                   ),
                 ],
-              ),
-      ),
-      const SizedBox(height: 14),
-      if (resumeUrl.isNotEmpty) ...[
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () async {
-                  final uri = Uri.parse(resumeUrl);
-                  if (await canLaunchUrl(uri)) {
-                    await launchUrl(
-                      uri,
-                      mode: LaunchMode.externalApplication,
-                    );
-                  } else {
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Resume link open nahi ho rahi'),
-                      ),
-                    );
-                  }
-                },
-                icon: const Icon(Icons.open_in_new),
-                label: const Text('Open'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () async {
-                  await Clipboard.setData(
-                    ClipboardData(text: resumeUrl),
-                  );
-
-                  if (!mounted) return;
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Resume link copied')),
-                  );
-                },
-                icon: const Icon(Icons.copy_rounded),
-                label: const Text('Copy Link'),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: deleteResume,
-                icon: const Icon(Icons.delete_outline),
-                label: const Text('Delete'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFFE4583E),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: uploadingResume ? null : uploadResumeToDrive,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2346A0),
-                  foregroundColor: Colors.white,
-                ),
-                icon: const Icon(Icons.upload_file),
-                label: Text(
-                  uploadingResume ? 'Uploading...' : 'Re-upload',
-                ),
-              ),
-            ),
-          ],
-        ),
-      ] else ...[
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: uploadingResume ? null : uploadResumeToDrive,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2346A0),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-            ),
-            icon: const Icon(Icons.upload_file),
-            label: Text(
-              uploadingResume
-                  ? 'Uploading...'
-                  : 'Upload Resume to Google Drive',
+              ],
             ),
           ),
-        ),
-      ],
-    ],
-  ),
-),
 
           const SizedBox(height: 20),
           SizedBox(
@@ -714,8 +766,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Text(saving ? 'Saving...' : 'Save Profile'),
             ),
           ),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 54,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                await FirebaseAuth.instance.signOut();
+                if (!mounted) return;
+                Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+              },
+              icon: const Icon(Icons.logout),
+              label: const Text('Sign Out'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFE4583E),
+                side: const BorderSide(color: Color(0xFFE4583E)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }

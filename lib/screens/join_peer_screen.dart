@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class JoinPeerScreen extends StatefulWidget {
@@ -24,6 +25,15 @@ class _JoinPeerScreenState extends State<JoinPeerScreen> {
       return;
     }
 
+    final currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please login first")),
+      );
+      return;
+    }
+
     setState(() {
       saving = true;
     });
@@ -33,6 +43,7 @@ class _JoinPeerScreenState extends State<JoinPeerScreen> {
         .doc(widget.code)
         .update({
       'joinedName': name,
+      'joinedUserId': currentUser.uid,
       'status': 'joined',
       'joinedAt': FieldValue.serverTimestamp(),
     });
@@ -44,8 +55,19 @@ class _JoinPeerScreenState extends State<JoinPeerScreen> {
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Joined successfully")),
+      const SnackBar(content: Text("Peer connected successfully")),
     );
+
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+    });
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    super.dispose();
   }
 
   @override
@@ -73,7 +95,7 @@ class _JoinPeerScreenState extends State<JoinPeerScreen> {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: saving ? null : joinPeer,
-              child: Text(saving ? "Joining..." : "Join"),
+              child: Text(saving ? "Connecting..." : "Connect"),
             ),
           ],
         ),
