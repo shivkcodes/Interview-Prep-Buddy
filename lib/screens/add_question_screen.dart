@@ -22,7 +22,9 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
 
     if (question.isEmpty || keywordsText.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Question aur keywords dono required hain')),
+        const SnackBar(
+          content: Text('Question aur keywords dono required hain'),
+        ),
       );
       return;
     }
@@ -38,12 +40,16 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
         saving = true;
       });
 
+      final currentUser = FirebaseAuth.instance.currentUser;
+
       await FirebaseFirestore.instance.collection('questions').add({
         'question': question,
         'type': selectedType,
         'keywords': keywords,
         'createdAt': FieldValue.serverTimestamp(),
-        'createdBy': FirebaseAuth.instance.currentUser?.email ?? 'user',
+        'createdBy': currentUser?.email ?? 'user',
+        'createdByUid': currentUser?.uid ?? '',
+        'isPinned': false,
       });
 
       if (!mounted) return;
@@ -54,9 +60,9 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
 
       Navigator.pop(context);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Question save nahi hua: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Question save nahi hua: $e')));
     } finally {
       if (mounted) {
         setState(() {
@@ -76,9 +82,7 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Add Question'),
-      ),
+      appBar: AppBar(title: const Text('Add Question')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

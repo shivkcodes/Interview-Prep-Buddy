@@ -42,3 +42,4 @@ dependencies:
   http: ^1.5.0
   url_launcher: ^6.3.1
   image_picker: ^1.1.2
+  local_auth: ^2.3.0

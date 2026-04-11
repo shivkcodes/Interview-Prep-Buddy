@@ -29,12 +29,17 @@ class PeerDetailScreen extends StatelessWidget {
 
           final profileData =
               (profileSnapshot.data?.data() as Map<String, dynamic>?) ?? {};
-
+          final hasProfileInfo = profileData.isNotEmpty;
+          final debugPeerUserId = peerUserId;
+          final debugProfileKeys = profileData.keys.join(', ');
           final photoUrl = profileData['photoUrl'] ?? '';
           final localPhotoPath = profileData['localPhotoPath'] ?? '';
           final name = profileData['name'] ?? peerName;
           final email = profileData['email'] ?? '';
           final dob = profileData['dob'] ?? '';
+          final tenth = profileData['tenth'] ?? '';
+          final twelfth = profileData['twelfth'] ?? '';
+          final graduation = profileData['graduation'] ?? '';
           final phone = profileData['phoneNumber'] ?? '';
           final college = profileData['collegeName'] ?? '';
           final degree = profileData['degree'] ?? '';
@@ -107,6 +112,23 @@ class PeerDetailScreen extends StatelessWidget {
               return ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  if (!hasProfileInfo)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(
+                        'Debug -> peerUserId: $debugPeerUserId\nprofile keys: $debugProfileKeys',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF667085),
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
                   Center(
                     child: Column(
                       children: [
@@ -213,13 +235,15 @@ class PeerDetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 14),
                   _infoTile('Date of Birth', dob),
+                  _infoTile('10th Percentage / CGPA', tenth),
+                  _infoTile('12th Percentage / CGPA', twelfth),
+                  _infoTile('Graduation Percentage / CGPA', graduation),
                   _infoTile('Phone', phone),
                   _infoTile('College', college),
                   _infoTile('Degree', degree),
                   _infoTile('Skills', skills),
                   _infoTile('Hobbies', hobbies),
                   _infoTile('Address', address),
-
                   const SizedBox(height: 24),
                   const Text(
                     'Professional Links',

@@ -16,6 +16,10 @@ import 'screens/profile_screen.dart';
 import 'screens/peer_detail_screen.dart';
 import 'app_settings.dart';
 import 'screens/profile_setup_screen.dart';
+import 'screens/settings_screen.dart';
+import 'app_lock_service.dart';
+import 'screens/app_lock_screen.dart';
+import 'screens/notification_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -199,12 +203,246 @@ class _AppGateState extends State<AppGate> {
               );
             }
 
-            if (widget.pendingJoinCode != null &&
-                widget.pendingJoinCode!.isNotEmpty) {
-              return JoinPeerScreen(code: widget.pendingJoinCode!);
+            final destination =
+                widget.pendingJoinCode != null &&
+                    widget.pendingJoinCode!.isNotEmpty
+                ? JoinPeerScreen(code: widget.pendingJoinCode!)
+                : const MainScreen();
+
+            return AppLockWrapper(child: destination);
+          },
+        );
+      },
+    );
+  }
+}
+
+class AppLockWrapper extends StatefulWidget {
+  final Widget child;
+
+  const AppLockWrapper({super.key, required this.child});
+
+  @override
+  State<AppLockWrapper> createState() => _AppLockWrapperState();
+}
+
+class _AppLockWrapperState extends State<AppLockWrapper>
+    with WidgetsBindingObserver {
+  bool initialized = false;
+  bool locked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    initializeLock();
+  }
+
+  Future<void> initializeLock() async {
+    final enabled = AppSettings.appLockEnabledNotifier.value;
+    final hasPin = await AppLockService.hasPin();
+
+    if (!mounted) return;
+
+    setState(() {
+      locked = enabled && hasPin;
+      initialized = true;
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!AppSettings.appLockEnabledNotifier.value) return;
+
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      if (mounted) {
+        setState(() {
+          locked = true;
+        });
+      }
+    }
+  }
+
+  void unlockApp() {
+    setState(() {
+      locked = false;
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!initialized) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (locked) {
+      return AppLockScreen(onUnlocked: unlockApp);
+    }
+
+    return widget.child;
+  }
+}
+
+class NotificationBellButton extends StatefulWidget {
+  final void Function(int tabIndex) onOpenTab;
+  final void Function(String query) onOpenQuestionSearch;
+
+  const NotificationBellButton({
+    super.key,
+    required this.onOpenTab,
+    required this.onOpenQuestionSearch,
+  });
+
+  @override
+  State<NotificationBellButton> createState() => _NotificationBellButtonState();
+}
+
+class _NotificationBellButtonState extends State<NotificationBellButton> {
+  static const String _questionSeenKey = 'notifications_last_seen_questions';
+
+  DateTime questionSeenAt = DateTime.fromMillisecondsSinceEpoch(0);
+  bool loadingSeenState = true;
+
+  @override
+  void initState() {
+    super.initState();
+    loadSeenState();
+  }
+
+  Future<void> loadSeenState() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedQuestionSeenAt = prefs.getInt(_questionSeenKey) ?? 0;
+
+    if (!mounted) return;
+
+    setState(() {
+      questionSeenAt = DateTime.fromMillisecondsSinceEpoch(savedQuestionSeenAt);
+      loadingSeenState = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null || loadingSeenState) {
+      return IconButton(
+        onPressed: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => NotificationsScreen(
+                onOpenTab: widget.onOpenTab,
+                onOpenQuestionSearch: widget.onOpenQuestionSearch,
+              ),
+            ),
+          );
+
+          if (!mounted) return;
+          await loadSeenState();
+        },
+        icon: const Icon(Icons.notifications_none_rounded),
+        tooltip: 'Notifications',
+      );
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('peer_chats')
+          .where('participants', arrayContains: user.uid)
+          .snapshots(),
+      builder: (context, chatSnapshot) {
+        final chatDocs = chatSnapshot.data?.docs ?? [];
+
+        int unreadMessageCount = 0;
+        for (final doc in chatDocs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final unreadCounts =
+              (data['unreadCounts'] as Map<String, dynamic>?) ?? {};
+          final unreadCount = (unreadCounts[user.uid] ?? 0) as num;
+          unreadMessageCount += unreadCount.toInt();
+        }
+
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('questions')
+              .snapshots(),
+          builder: (context, questionSnapshot) {
+            final questionDocs = questionSnapshot.data?.docs ?? [];
+
+            int newQuestionCount = 0;
+            for (final doc in questionDocs) {
+              final data = doc.data() as Map<String, dynamic>;
+              final createdByUid = (data['createdByUid'] ?? '').toString();
+              final createdAt = data['createdAt'] as Timestamp?;
+
+              if (createdByUid == user.uid) continue;
+              if (createdAt == null) continue;
+
+              if (createdAt.toDate().isAfter(questionSeenAt)) {
+                newQuestionCount++;
+              }
             }
 
-            return const MainScreen();
+            final totalCount = unreadMessageCount + newQuestionCount;
+
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                IconButton(
+                  onPressed: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            NotificationsScreen(onOpenTab: widget.onOpenTab),
+                      ),
+                    );
+
+                    if (!mounted) return;
+                    await loadSeenState();
+                  },
+                  icon: const Icon(Icons.notifications_none_rounded),
+                  tooltip: 'Notifications',
+                ),
+                if (totalCount > 0)
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE4583E),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 18,
+                        minHeight: 18,
+                      ),
+                      child: Text(
+                        totalCount > 99 ? '99+' : '$totalCount',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            );
           },
         );
       },
@@ -246,6 +484,8 @@ class _MainScreenState extends State<MainScreen> {
 
   final List<Attempt> attempts = [];
   int titleAnimationTick = 0;
+  String pendingQuestionSearch = '';
+  int questionSearchVersion = 0;
 
   void addAttempt(Attempt attempt) {
     setState(() {
@@ -352,6 +592,21 @@ class _MainScreenState extends State<MainScreen> {
             appBar: AppBar(
               title: buildAnimatedTitle(),
               actions: [
+                NotificationBellButton(
+                  onOpenTab: (index) {
+                    setState(() {
+                      selectedIndex = index;
+                    });
+                  },
+                  onOpenQuestionSearch: (query) {
+                    setState(() {
+                      selectedIndex = 1;
+                      pendingQuestionSearch = query;
+                      questionSearchVersion++;
+                    });
+                  },
+                ),
+
                 Padding(
                   padding: const EdgeInsets.only(right: 12),
                   child: GestureDetector(
@@ -456,6 +711,34 @@ class _MainScreenState extends State<MainScreen> {
                                   const SizedBox(height: 10),
                                   SizedBox(
                                     width: double.infinity,
+                                    child: OutlinedButton.icon(
+                                      onPressed: () {
+                                        Navigator.pop(context);
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                const SettingsScreen(),
+                                          ),
+                                        );
+                                      },
+                                      icon: const Icon(Icons.settings_outlined),
+                                      label: const Text('Settings'),
+                                      style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 14,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  SizedBox(
+                                    width: double.infinity,
                                     child: ElevatedButton.icon(
                                       onPressed: () async {
                                         Navigator.pop(context);
@@ -543,6 +826,10 @@ class _MainScreenState extends State<MainScreen> {
             "question": data["question"] ?? "",
             "type": data["type"] ?? "General",
             "keywords": List<String>.from(data["keywords"] ?? []),
+            "createdBy": data["createdBy"] ?? "",
+            "createdByUid": data["createdByUid"] ?? "",
+            "isPinned": data["isPinned"] ?? false,
+            "createdAt": data["createdAt"],
           };
         }).toList();
 
@@ -555,7 +842,12 @@ class _MainScreenState extends State<MainScreen> {
               });
             },
           ),
-          QuestionBankScreen(questions: questions),
+          QuestionBankScreen(
+            questions: questions,
+            initialSearchQuery: pendingQuestionSearch,
+            searchVersion: questionSearchVersion,
+          ),
+
           MockInterviewScreen(
             questions: questions,
             onSubmitAttempt: addAttempt,
@@ -569,6 +861,21 @@ class _MainScreenState extends State<MainScreen> {
           appBar: AppBar(
             title: buildAnimatedTitle(),
             actions: [
+              NotificationBellButton(
+                onOpenTab: (index) {
+                  setState(() {
+                    selectedIndex = index;
+                  });
+                },
+                onOpenQuestionSearch: (query) {
+                  setState(() {
+                    selectedIndex = 1;
+                    pendingQuestionSearch = query;
+                    questionSearchVersion++;
+                  });
+                },
+              ),
+
               Padding(
                 padding: const EdgeInsets.only(right: 12),
                 child: GestureDetector(
@@ -652,6 +959,32 @@ class _MainScreenState extends State<MainScreen> {
                                     },
                                     icon: const Icon(Icons.person_outline),
                                     label: const Text('Open Profile'),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed: () {
+                                      Navigator.pop(context);
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const SettingsScreen(),
+                                        ),
+                                      );
+                                    },
+                                    icon: const Icon(Icons.settings_outlined),
+                                    label: const Text('Settings'),
                                     style: OutlinedButton.styleFrom(
                                       padding: const EdgeInsets.symmetric(
                                         vertical: 14,
@@ -1319,13 +1652,326 @@ class FeatureTile extends StatelessWidget {
   }
 }
 
-class QuestionBankScreen extends StatelessWidget {
+class QuestionBankScreen extends StatefulWidget {
   final List<Map<String, dynamic>> questions;
+  final String initialSearchQuery;
+  final int searchVersion;
 
-  const QuestionBankScreen({super.key, required this.questions});
+  const QuestionBankScreen({
+    super.key,
+    required this.questions,
+    this.initialSearchQuery = '',
+    this.searchVersion = 0,
+  });
+
+  @override
+  State<QuestionBankScreen> createState() => _QuestionBankScreenState();
+}
+
+class _QuestionBankScreenState extends State<QuestionBankScreen> {
+  final TextEditingController searchController = TextEditingController();
+  String searchQuery = '';
+  @override
+  void initState() {
+    super.initState();
+    searchController.text = widget.initialSearchQuery;
+    searchQuery = widget.initialSearchQuery;
+  }
+
+  @override
+  void didUpdateWidget(covariant QuestionBankScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.searchVersion != widget.searchVersion) {
+      searchController.text = widget.initialSearchQuery;
+      searchQuery = widget.initialSearchQuery;
+
+      if (mounted) {
+        setState(() {});
+      }
+    }
+  }
+
+  Future<void> deleteQuestion({
+    required BuildContext context,
+    required String questionId,
+  }) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete Question'),
+          content: const Text(
+            'Kya aap sure hain ki aap ye question delete karna chahte ho?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete != true) return;
+
+    await FirebaseFirestore.instance
+        .collection('questions')
+        .doc(questionId)
+        .delete();
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Question deleted successfully')),
+    );
+  }
+
+  Future<void> togglePinQuestion({
+    required BuildContext context,
+    required String questionId,
+    required bool currentPinnedValue,
+  }) async {
+    await FirebaseFirestore.instance
+        .collection('questions')
+        .doc(questionId)
+        .update({'isPinned': !currentPinnedValue});
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          currentPinnedValue ? 'Question unpinned' : 'Question pinned to top',
+        ),
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> sortQuestions(List<Map<String, dynamic>> items) {
+    final sorted = List<Map<String, dynamic>>.from(items);
+
+    sorted.sort((a, b) {
+      final aPinned = a['isPinned'] == true ? 1 : 0;
+      final bPinned = b['isPinned'] == true ? 1 : 0;
+
+      if (aPinned != bPinned) {
+        return bPinned.compareTo(aPinned);
+      }
+
+      final aTime = a['createdAt'] as Timestamp?;
+      final bTime = b['createdAt'] as Timestamp?;
+
+      if (aTime == null && bTime == null) return 0;
+      if (aTime == null) return 1;
+      if (bTime == null) return -1;
+
+      return bTime.compareTo(aTime);
+    });
+
+    return sorted;
+  }
+
+  Widget sectionHeading(String title, String subtitle) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF1C2434),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          subtitle,
+          style: const TextStyle(color: Color(0xFF667085), height: 1.5),
+        ),
+      ],
+    );
+  }
+
+  bool matchesQuestionSearch(Map<String, dynamic> item) {
+    final query = searchQuery.trim().toLowerCase();
+    if (query.isEmpty) return true;
+
+    final question = (item['question'] ?? '').toString().toLowerCase();
+    final type = (item['type'] ?? '').toString().toLowerCase();
+    final keywords = (item['keywords'] as List<dynamic>? ?? [])
+        .map((e) => e.toString().toLowerCase())
+        .join(' ');
+
+    return question.contains(query) ||
+        type.contains(query) ||
+        keywords.contains(query);
+  }
+
+  Widget buildQuestionCard({
+    required BuildContext context,
+    required Map<String, dynamic> item,
+    required bool isMine,
+  }) {
+    final isHr = item["type"] == "HR";
+    final isPinned = item["isPinned"] == true;
+    final createdBy = item["createdBy"] ?? '';
+    final questionId = item["id"] ?? '';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x12000000),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            height: 52,
+            width: 52,
+            decoration: BoxDecoration(
+              color: isHr ? const Color(0xFFE7F0FF) : const Color(0xFFE8F7EC),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              isHr ? Icons.person_outline : Icons.memory_rounded,
+              color: isHr ? const Color(0xFF2F67D8) : const Color(0xFF2E9D57),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        item["question"],
+                        style: const TextStyle(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1C2434),
+                        ),
+                      ),
+                    ),
+                    if (isPinned)
+                      Container(
+                        margin: const EdgeInsets.only(left: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE8EEFF),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Text(
+                          'Pinned',
+                          style: TextStyle(
+                            color: Color(0xFF2346A0),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  item["type"],
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF667085),
+                  ),
+                ),
+                if (!isMine && createdBy.toString().isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Added by: $createdBy',
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: Color(0xFF98A2B3),
+                    ),
+                  ),
+                ],
+                if (isMine) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            togglePinQuestion(
+                              context: context,
+                              questionId: questionId,
+                              currentPinnedValue: isPinned,
+                            );
+                          },
+                          icon: Icon(
+                            isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                          ),
+                          label: Text(isPinned ? 'Unpin' : 'Pin to Top'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            deleteQuestion(
+                              context: context,
+                              questionId: questionId,
+                            );
+                          },
+                          icon: const Icon(Icons.delete_outline),
+                          label: const Text('Delete'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFE4583E),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final currentUser = FirebaseAuth.instance.currentUser;
+
+    final myQuestions = sortQuestions(
+      widget.questions.where((item) {
+        final isMine =
+            item['createdByUid'] == currentUser?.uid ||
+            item['createdBy'] == currentUser?.email;
+        return isMine && matchesQuestionSearch(item);
+      }).toList(),
+    );
+
+    final cloudQuestions = sortQuestions(
+      widget.questions.where(matchesQuestionSearch).toList(),
+    );
+
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
@@ -1347,7 +1993,7 @@ class QuestionBankScreen extends StatelessWidget {
                       ),
                       SizedBox(height: 6),
                       Text(
-                        "Firestore se synced HR aur Technical questions",
+                        "Apne questions alag dekho aur neeche cloud me sab users ke questions explore karo.",
                         style: TextStyle(color: Color(0xFF667085)),
                       ),
                     ],
@@ -1368,85 +2014,103 @@ class QuestionBankScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 18),
+            TextField(
+              controller: searchController,
+              onChanged: (value) {
+                setState(() {
+                  searchQuery = value;
+                });
+              },
+              decoration: InputDecoration(
+                hintText: 'Search by question, type, or keyword',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: searchQuery.isEmpty
+                    ? null
+                    : IconButton(
+                        onPressed: () {
+                          searchController.clear();
+                          setState(() {
+                            searchQuery = '';
+                          });
+                        },
+                        icon: const Icon(Icons.close),
+                      ),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
             Expanded(
-              child: questions.isEmpty
-                  ? const Center(
-                      child: Text('Abhi koi question available nahi hai.'),
+              child: ListView(
+                children: [
+                  sectionHeading(
+                    'My Questions',
+                    'Sirf wahi questions jo aapne add kiye hain. Inhe pin ya delete bhi kar sakte ho.',
+                  ),
+                  const SizedBox(height: 14),
+                  if (myQuestions.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'Aapne abhi tak koi question add nahi kiya hai.',
+                      ),
                     )
-                  : ListView.builder(
-                      itemCount: questions.length,
-                      itemBuilder: (context, index) {
-                        final item = questions[index];
-                        final isHr = item["type"] == "HR";
-
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x12000000),
-                                blurRadius: 12,
-                                offset: Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                height: 52,
-                                width: 52,
-                                decoration: BoxDecoration(
-                                  color: isHr
-                                      ? const Color(0xFFE7F0FF)
-                                      : const Color(0xFFE8F7EC),
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Icon(
-                                  isHr
-                                      ? Icons.person_outline
-                                      : Icons.memory_rounded,
-                                  color: isHr
-                                      ? const Color(0xFF2F67D8)
-                                      : const Color(0xFF2E9D57),
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      item["question"],
-                                      style: const TextStyle(
-                                        fontSize: 15.5,
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF1C2434),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      item["type"],
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        color: Color(0xFF667085),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+                  else
+                    ...myQuestions.map(
+                      (item) => buildQuestionCard(
+                        context: context,
+                        item: item,
+                        isMine: true,
+                      ),
                     ),
+
+                  const SizedBox(height: 24),
+
+                  sectionHeading(
+                    'Cloud Questions',
+                    'Yahan sab users ke total questions dikhte hain, including your own questions as well.',
+                  ),
+                  const SizedBox(height: 14),
+                  if (cloudQuestions.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'Abhi koi cloud question available nahi hai.',
+                      ),
+                    )
+                  else
+                    ...cloudQuestions.map(
+                      (item) => buildQuestionCard(
+                        context: context,
+                        item: item,
+                        isMine: false,
+                      ),
+                    ),
+                ],
+              ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    searchController.dispose();
+    super.dispose();
   }
 }
 
@@ -2220,6 +2884,8 @@ class _PeerPracticeScreenState extends State<PeerPracticeScreen> {
   String currentUserName = '';
   String currentUserPhotoUrl = '';
   SharedPreferences? peerPrefs;
+  final TextEditingController peerSearchController = TextEditingController();
+  String peerSearchQuery = '';
 
   @override
   void initState() {
@@ -2360,6 +3026,19 @@ class _PeerPracticeScreenState extends State<PeerPracticeScreen> {
     return '$hour:$minute';
   }
 
+  bool matchesPeerSearch({
+    required String peerName,
+    required String displayPeerName,
+    required String peerEmail,
+  }) {
+    final query = peerSearchQuery.trim().toLowerCase();
+    if (query.isEmpty) return true;
+
+    return peerName.toLowerCase().contains(query) ||
+        displayPeerName.toLowerCase().contains(query) ||
+        peerEmail.toLowerCase().contains(query);
+  }
+
   String generateCode() {
     final millis = DateTime.now().millisecondsSinceEpoch.toString();
     return millis.substring(millis.length - 6);
@@ -2415,6 +3094,36 @@ class _PeerPracticeScreenState extends State<PeerPracticeScreen> {
               onPressed: addPerson,
               icon: const Icon(Icons.person_add_alt_1),
               label: const Text("Add Person"),
+            ),
+          ),
+          const SizedBox(height: 18),
+          TextField(
+            controller: peerSearchController,
+            onChanged: (value) {
+              setState(() {
+                peerSearchQuery = value;
+              });
+            },
+            decoration: InputDecoration(
+              hintText: 'Search peer by name or email',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: peerSearchQuery.isEmpty
+                  ? null
+                  : IconButton(
+                      onPressed: () {
+                        peerSearchController.clear();
+                        setState(() {
+                          peerSearchQuery = '';
+                        });
+                      },
+                      icon: const Icon(Icons.close),
+                    ),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(18),
+                borderSide: BorderSide.none,
+              ),
             ),
           ),
           const SizedBox(height: 18),
@@ -2482,7 +3191,15 @@ class _PeerPracticeScreenState extends State<PeerPracticeScreen> {
                     builder: (context, profileSnapshot) {
                       final profileData =
                           profileSnapshot.data?.data() as Map<String, dynamic>?;
-
+                      final peerEmail = (profileData?['email'] ?? '')
+                          .toString();
+                      if (!matchesPeerSearch(
+                        peerName: peerName,
+                        displayPeerName: displayPeerName,
+                        peerEmail: peerEmail,
+                      )) {
+                        return const SizedBox.shrink();
+                      }
                       final peerPhotoUrl =
                           (profileData?['photoUrl'] ?? invitePhotoUrl)
                               .toString();
@@ -2717,5 +3434,11 @@ class _PeerPracticeScreenState extends State<PeerPracticeScreen> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    peerSearchController.dispose();
+    super.dispose();
   }
 }

@@ -366,6 +366,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile saved successfully')),
       );
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
     } catch (e) {
       ScaffoldMessenger.of(
         context,
@@ -779,49 +781,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 child: Text(saving ? 'Saving...' : 'Save Profile'),
-              ),
-            ),
-            const SizedBox(height: 14),
-            SizedBox(
-              height: 54,
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                  );
-                },
-                icon: const Icon(Icons.settings_outlined),
-                label: const Text('Open Settings'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF2346A0),
-                  side: const BorderSide(color: Color(0xFF2346A0)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            SizedBox(
-              height: 54,
-              child: OutlinedButton.icon(
-                onPressed: () async {
-                  await FirebaseAuth.instance.signOut();
-                  if (!mounted) return;
-                  Navigator.of(
-                    context,
-                  ).pushNamedAndRemoveUntil('/', (route) => false);
-                },
-                icon: const Icon(Icons.logout),
-                label: const Text('Sign Out'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFFE4583E),
-                  side: const BorderSide(color: Color(0xFFE4583E)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                ),
               ),
             ),
           ],

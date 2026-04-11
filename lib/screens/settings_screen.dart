@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import '../app_settings.dart';
 import '../app_text.dart';
+import '../app_lock_service.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
   String _themeLabel(ThemeMode mode) {
     switch (mode) {
       case ThemeMode.light:
@@ -26,6 +32,179 @@ class SettingsScreen extends StatelessWidget {
     return AppSettings.languageLabel(code);
   }
 
+  Future<void> _showPinSetupSheet({bool isChange = false}) async {
+    final pinController = TextEditingController();
+    final confirmPinController = TextEditingController();
+    String errorText = '';
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            Future<void> savePin() async {
+              final pin = pinController.text.trim();
+              final confirmPin = confirmPinController.text.trim();
+
+              if (pin.length != 4 || confirmPin.length != 4) {
+                setSheetState(() {
+                  errorText = 'PIN must be exactly 4 digits';
+                });
+                return;
+              }
+
+              if (pin != confirmPin) {
+                setSheetState(() {
+                  errorText = 'PIN does not match';
+                });
+                return;
+              }
+
+              await AppLockService.savePin(pin);
+              await AppSettings.setAppLockEnabled(true);
+
+              if (!mounted) return;
+
+              Navigator.pop(sheetContext);
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    isChange
+                        ? 'App lock PIN updated successfully'
+                        : 'App lock enabled successfully',
+                  ),
+                ),
+              );
+            }
+
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                20,
+                20,
+                MediaQuery.of(sheetContext).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isChange ? 'Change App Lock PIN' : 'Set App Lock PIN',
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1C2434),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Set a 4-digit PIN. This will be used if fingerprint or face unlock is not available.',
+                    style: TextStyle(color: Color(0xFF667085), height: 1.5),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: pinController,
+                    keyboardType: TextInputType.number,
+                    obscureText: true,
+                    maxLength: 4,
+                    decoration: InputDecoration(
+                      labelText: 'Enter 4-digit PIN',
+                      counterText: '',
+                      filled: true,
+                      fillColor: const Color(0xFFF4F7FB),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(18),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: confirmPinController,
+                    keyboardType: TextInputType.number,
+                    obscureText: true,
+                    maxLength: 4,
+                    decoration: InputDecoration(
+                      labelText: 'Confirm PIN',
+                      counterText: '',
+                      filled: true,
+                      fillColor: const Color(0xFFF4F7FB),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(18),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  if (errorText.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      errorText,
+                      style: const TextStyle(
+                        color: Color(0xFFE4583E),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: savePin,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2346A0),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                      ),
+                      child: Text(isChange ? 'Update PIN' : 'Enable App Lock'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _handleAppLockToggle(bool value) async {
+    if (value) {
+      await _showPinSetupSheet();
+      return;
+    }
+
+    await AppSettings.setAppLockEnabled(false);
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('App lock disabled')));
+  }
+
+  Future<void> _handleBiometricToggle(bool value) async {
+    await AppSettings.setBiometricUnlockEnabled(value);
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          value ? 'Biometric unlock enabled' : 'Biometric unlock disabled',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -43,7 +222,7 @@ class SettingsScreen extends StatelessWidget {
         children: [
           Text(
             AppText.value(en: 'Settings', hi: 'सेटिंग्स', mix: 'Settings'),
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),
           Text(
@@ -52,7 +231,7 @@ class SettingsScreen extends StatelessWidget {
               hi: 'अपनी पसंद के अनुसार ऐप अनुभव को बदलें।',
               mix: 'App ko apni preference ke according customize karo.',
             ),
-            style: TextStyle(color: Color(0xFF667085)),
+            style: const TextStyle(color: Color(0xFF667085)),
           ),
           const SizedBox(height: 20),
 
@@ -77,7 +256,7 @@ class SettingsScreen extends StatelessWidget {
                   children: [
                     Text(
                       AppText.value(en: 'Theme', hi: 'थीम', mix: 'Theme'),
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
                       ),
@@ -138,7 +317,7 @@ class SettingsScreen extends StatelessWidget {
                         hi: 'फ़ॉन्ट साइज़',
                         mix: 'Font Size',
                       ),
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
                       ),
@@ -196,7 +375,7 @@ class SettingsScreen extends StatelessWidget {
                         hi: 'भाषा',
                         mix: 'Language',
                       ),
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
                       ),
@@ -249,6 +428,86 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ],
             ),
+            child: ValueListenableBuilder<bool>(
+              valueListenable: AppSettings.appLockEnabledNotifier,
+              builder: (context, appLockEnabled, _) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'App Lock',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Enable PIN and biometric protection so the app asks for unlock when reopened.',
+                      style: TextStyle(color: Color(0xFF667085), height: 1.5),
+                    ),
+                    const SizedBox(height: 14),
+                    SwitchListTile(
+                      value: appLockEnabled,
+                      onChanged: _handleAppLockToggle,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Enable App Lock'),
+                      subtitle: Text(
+                        appLockEnabled
+                            ? 'Currently enabled'
+                            : 'Currently disabled',
+                      ),
+                    ),
+                    if (appLockEnabled) ...[
+                      const SizedBox(height: 8),
+                      ValueListenableBuilder<bool>(
+                        valueListenable:
+                            AppSettings.biometricUnlockEnabledNotifier,
+                        builder: (context, biometricEnabled, __) {
+                          return SwitchListTile(
+                            value: biometricEnabled,
+                            onChanged: _handleBiometricToggle,
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Use Fingerprint / Face ID'),
+                            subtitle: const Text(
+                              'If available on your device, biometrics can unlock the app faster.',
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            _showPinSetupSheet(isChange: true);
+                          },
+                          icon: const Icon(Icons.password_rounded),
+                          label: const Text('Change PIN'),
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x12000000),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -258,7 +517,10 @@ class SettingsScreen extends StatelessWidget {
                     hi: 'पीयर कनेक्शन',
                     mix: 'Peer Connection',
                   ),
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 const Text(
