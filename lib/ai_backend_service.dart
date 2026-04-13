@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class AIBackendService {
-  static const String baseUrl = 'http://10.19.20.6:5000';
+  static const String baseUrl = 'https://prep-buddy-ai-backend.onrender.com';
 
   static Future<Map<String, dynamic>> analyzeAnswer({
     required String question,
