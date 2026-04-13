@@ -20,6 +20,7 @@ import 'screens/settings_screen.dart';
 import 'app_lock_service.dart';
 import 'screens/app_lock_screen.dart';
 import 'screens/notification_screen.dart';
+import 'ai_backend_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -459,6 +460,11 @@ class Attempt {
   final int totalKeywords;
   final String weakArea;
   final double voiceAccuracy;
+  final String aiSummary;
+  final List<String> aiImprovements;
+  final List<String> missingKeywords;
+  final List<String> suggestedKeywords;
+  final String betterAnswer;
 
   Attempt({
     required this.question,
@@ -469,6 +475,11 @@ class Attempt {
     required this.totalKeywords,
     required this.weakArea,
     required this.voiceAccuracy,
+    required this.aiSummary,
+    required this.aiImprovements,
+    required this.missingKeywords,
+    required this.suggestedKeywords,
+    required this.betterAnswer,
   });
 }
 
@@ -2836,6 +2847,7 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
     required String question,
     required String answer,
     required List<String> keywords,
+    required Map<String, dynamic> aiFeedback,
   }) {
     final normalizedAnswer = answer.trim().toLowerCase();
     final wordCount = normalizedAnswer
@@ -2851,11 +2863,9 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
     }
 
     final double lengthScore = wordCount >= 30 ? 40.0 : (wordCount / 30) * 40.0;
-
     final double keywordScore = keywords.isEmpty
         ? 0.0
         : (matchedKeywords / keywords.length) * 60.0;
-
     final double finalScore = (lengthScore + keywordScore).toDouble();
 
     String weakArea;
@@ -2878,6 +2888,13 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
       totalKeywords: keywords.length,
       weakArea: weakArea,
       voiceAccuracy: speechConfidence * 100,
+      aiSummary: (aiFeedback['summary'] ?? '').toString(),
+      aiImprovements: List<String>.from(aiFeedback['improvements'] ?? []),
+      missingKeywords: List<String>.from(aiFeedback['missing_keywords'] ?? []),
+      suggestedKeywords: List<String>.from(
+        aiFeedback['suggested_keywords'] ?? [],
+      ),
+      betterAnswer: (aiFeedback['better_answer'] ?? '').toString(),
     );
   }
 
@@ -2902,6 +2919,11 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
       'speechConfidence': speechConfidence,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
+      'aiSummary': attempt.aiSummary,
+      'aiImprovements': attempt.aiImprovements,
+      'missingKeywords': attempt.missingKeywords,
+      'suggestedKeywords': attempt.suggestedKeywords,
+      'betterAnswer': attempt.betterAnswer,
     });
   }
 
@@ -2930,10 +2952,34 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
     }
 
     final selected = widget.questions[selectedQuestionIndex];
+    Map<String, dynamic> aiFeedback;
+
+    try {
+      aiFeedback = await AIBackendService.analyzeAnswer(
+        question: selected["question"],
+        answer: answer,
+        keywords: List<String>.from(selected["keywords"]),
+      );
+    } catch (_) {
+      aiFeedback = {
+        'summary':
+            'AI feedback abhi available nahi hai. Normal analysis use ki gayi hai.',
+        'improvements': <String>[
+          'Answer ko thoda aur structured banao.',
+          'Relevant keywords naturally include karo.',
+          'Short example ya reason add karo.',
+        ],
+        'missing_keywords': <String>[],
+        'suggested_keywords': List<String>.from(selected["keywords"]),
+        'better_answer': answer,
+      };
+    }
+
     final attempt = analyzeAnswer(
       question: selected["question"],
       answer: answer,
       keywords: List<String>.from(selected["keywords"]),
+      aiFeedback: aiFeedback,
     );
 
     await saveAnswerToFirestore(selectedQuestion: selected, attempt: attempt);
@@ -2950,6 +2996,120 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
       isListening = false;
       inputMode = '';
     });
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                Container(
+                  width: 46,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD7DEEA),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'AI Feedback',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1C2434),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  attempt.aiSummary,
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    height: 1.5,
+                    color: Color(0xFF475467),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  'Improvements',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 10),
+                ...attempt.aiImprovements.map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("• "),
+                        Expanded(
+                          child: Text(
+                            item,
+                            style: const TextStyle(height: 1.45),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (attempt.suggestedKeywords.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Suggested Keywords',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: attempt.suggestedKeywords.map((keyword) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEAF1FF),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(keyword),
+                      );
+                    }).toList(),
+                  ),
+                ],
+                if (attempt.betterAnswer.trim().isNotEmpty) ...[
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Better Version',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFD),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE3EAF4)),
+                    ),
+                    child: Text(
+                      attempt.betterAnswer,
+                      style: const TextStyle(height: 1.5),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Answer analyzed and saved successfully")),
@@ -3332,6 +3492,15 @@ class PerformanceScreen extends StatelessWidget {
               'totalKeywords': data['totalKeywords'] ?? 0,
               'weakArea': data['weakArea'] ?? 'No data',
               'speechConfidence': (data['speechConfidence'] ?? 0).toDouble(),
+              'aiSummary': data['aiSummary'] ?? '',
+              'aiImprovements': List<String>.from(data['aiImprovements'] ?? []),
+              'missingKeywords': List<String>.from(
+                data['missingKeywords'] ?? [],
+              ),
+              'suggestedKeywords': List<String>.from(
+                data['suggestedKeywords'] ?? [],
+              ),
+              'betterAnswer': data['betterAnswer'] ?? '',
             };
           }).toList();
 
@@ -3556,6 +3725,82 @@ class _PerformanceContentState extends State<_PerformanceContent> {
                     "${((selected['speechConfidence'] as double) * 100).toStringAsFixed(1)}%",
                 color: const Color(0xFF06B6D4),
               ),
+              const SizedBox(height: 18),
+              const Text(
+                "AI Suggestions",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                (selected['aiSummary'] ?? '').toString(),
+                style: const TextStyle(
+                  fontSize: 14,
+                  height: 1.45,
+                  color: Color(0xFF475467),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...((selected['aiImprovements'] as List<String>).map(
+                (item) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text("• "),
+                      Expanded(
+                        child: Text(
+                          item,
+                          style: const TextStyle(fontSize: 14, height: 1.4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )),
+              if ((selected['suggestedKeywords'] as List).isNotEmpty) ...[
+                const SizedBox(height: 12),
+                InfoCard(
+                  title: "Suggested Keywords",
+                  value: (selected['suggestedKeywords'] as List).join(', '),
+                  color: const Color(0xFF7C3AED),
+                ),
+              ],
+              if ((selected['betterAnswer'] ?? '')
+                  .toString()
+                  .trim()
+                  .isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFD),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE3EAF4)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Better Version",
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF2346A0),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        selected['betterAnswer'],
+                        style: const TextStyle(
+                          fontSize: 14,
+                          height: 1.45,
+                          color: Color(0xFF1C2434),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),

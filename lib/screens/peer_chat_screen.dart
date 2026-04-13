@@ -1103,212 +1103,216 @@ class _PeerChatScreenState extends State<PeerChatScreen> {
                     final originalSenderName =
                         (data['originalSenderName'] ?? '').toString();
 
-                    return Align(
-                      alignment: isMe
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: GestureDetector(
-                        onLongPress: () {
-                          showMessageActions(
-                            chatId: chatId,
-                            messageId: messageId,
-                            text: text,
-                            senderName: senderName,
-                            createdAt: createdAt,
-                            isMe: isMe,
-                            isStarred: isStarred,
-                            reactions: reactions,
-                          );
-                        },
-                        child: Slidable(
-                          key: ValueKey(messageId),
-                          startActionPane: isMe
-                              ? null
-                              : ActionPane(
-                                  motion: const DrawerMotion(),
-                                  extentRatio: 0.22,
-                                  children: [
-                                    SlidableAction(
-                                      onPressed: (_) {
-                                        startReply(
-                                          messageId: messageId,
-                                          text: text,
-                                          senderName: senderName,
-                                        );
-                                      },
-                                      backgroundColor: const Color(0xFF2346A0),
-                                      foregroundColor: Colors.white,
-                                      borderRadius: BorderRadius.circular(18),
-                                      icon: Icons.reply_rounded,
-                                      label: 'Reply',
-                                    ),
-                                  ],
-                                ),
-                          endActionPane: isMe
-                              ? ActionPane(
-                                  motion: const DrawerMotion(),
-                                  extentRatio: 0.22,
-                                  children: [
-                                    SlidableAction(
-                                      onPressed: (_) {
-                                        startReply(
-                                          messageId: messageId,
-                                          text: text,
-                                          senderName: senderName,
-                                        );
-                                      },
-                                      backgroundColor: const Color(0xFF2346A0),
-                                      foregroundColor: Colors.white,
-                                      borderRadius: BorderRadius.circular(18),
-                                      icon: Icons.reply_rounded,
-                                      label: 'Reply',
-                                    ),
-                                  ],
-                                )
-                              : null,
-                          child: Container(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            padding: const EdgeInsets.all(14),
-                            constraints: BoxConstraints(
-                              maxWidth:
-                                  MediaQuery.of(context).size.width * 0.78,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isMe
-                                  ? const Color(0xFF2346A0)
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(18),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x12000000),
-                                  blurRadius: 10,
-                                  offset: Offset(0, 4),
-                                ),
-                              ],
-                              border: isStarred
-                                  ? Border.all(
-                                      color: const Color(0xFFFFD76A),
-                                      width: 1.5,
-                                    )
-                                  : null,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: isMe
-                                  ? CrossAxisAlignment.end
-                                  : CrossAxisAlignment.start,
-                              children: [
-                                if (!isMe)
-                                  Text(
-                                    senderName,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFF2346A0),
-                                    ),
+                    return GestureDetector(
+                      onLongPress: () {
+                        showMessageActions(
+                          chatId: chatId,
+                          messageId: messageId,
+                          text: text,
+                          senderName: senderName,
+                          createdAt: createdAt,
+                          isMe: isMe,
+                          isStarred: isStarred,
+                          reactions: reactions,
+                        );
+                      },
+                      child: Slidable(
+                        key: ValueKey(messageId),
+                        startActionPane: isMe
+                            ? null
+                            : ActionPane(
+                                motion: const DrawerMotion(),
+                                extentRatio: 0.22,
+                                children: [
+                                  SlidableAction(
+                                    onPressed: (_) {
+                                      startReply(
+                                        messageId: messageId,
+                                        text: text,
+                                        senderName: senderName,
+                                      );
+                                    },
+                                    backgroundColor: const Color(0xFF2346A0),
+                                    foregroundColor: Colors.white,
+                                    borderRadius: BorderRadius.circular(18),
+                                    icon: Icons.reply_rounded,
+                                    label: 'Reply',
                                   ),
-                                if (!isMe) const SizedBox(height: 6),
-                                if (isForwarded) ...[
+                                ],
+                              ),
+                        endActionPane: isMe
+                            ? ActionPane(
+                                motion: const DrawerMotion(),
+                                extentRatio: 0.22,
+                                children: [
+                                  SlidableAction(
+                                    onPressed: (_) {
+                                      startReply(
+                                        messageId: messageId,
+                                        text: text,
+                                        senderName: senderName,
+                                      );
+                                    },
+                                    backgroundColor: const Color(0xFF2346A0),
+                                    foregroundColor: Colors.white,
+                                    borderRadius: BorderRadius.circular(18),
+                                    icon: Icons.reply_rounded,
+                                    label: 'Reply',
+                                  ),
+                                ],
+                              )
+                            : null,
+                        child: Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          child: Align(
+                            alignment: isMe
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                            child: Container(
+                              padding: const EdgeInsets.all(14),
+                              constraints: BoxConstraints(
+                                maxWidth:
+                                    MediaQuery.of(context).size.width * 0.78,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isMe
+                                    ? const Color(0xFF2346A0)
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(18),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x12000000),
+                                    blurRadius: 10,
+                                    offset: Offset(0, 4),
+                                  ),
+                                ],
+                                border: isStarred
+                                    ? Border.all(
+                                        color: const Color(0xFFFFD76A),
+                                        width: 1.5,
+                                      )
+                                    : null,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: isMe
+                                    ? CrossAxisAlignment.end
+                                    : CrossAxisAlignment.start,
+                                children: [
+                                  if (!isMe)
+                                    Text(
+                                      senderName,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF2346A0),
+                                      ),
+                                    ),
+                                  if (!isMe) const SizedBox(height: 6),
+                                  if (isForwarded) ...[
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.forward_rounded,
+                                          size: 14,
+                                          color: isMe
+                                              ? Colors.white70
+                                              : const Color(0xFF667085),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Flexible(
+                                          child: Text(
+                                            originalSenderName.isNotEmpty
+                                                ? 'Forwarded from $originalSenderName'
+                                                : 'Forwarded',
+                                            style: TextStyle(
+                                              fontSize: 11.5,
+                                              fontWeight: FontWeight.w600,
+                                              color: isMe
+                                                  ? Colors.white70
+                                                  : const Color(0xFF667085),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                  ],
+                                  if (replyToText.isNotEmpty)
+                                    _buildReplyPreview(
+                                      isMe: isMe,
+                                      replyToSenderName: replyToSenderName,
+                                      replyToText: replyToText,
+                                    ),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          text,
+                                          style: TextStyle(
+                                            fontSize: 15,
+                                            height: 1.5,
+                                            fontStyle: deletedForEveryone
+                                                ? FontStyle.italic
+                                                : FontStyle.normal,
+                                            color: isMe
+                                                ? Colors.white
+                                                : const Color(0xFF1C2434),
+                                          ),
+                                        ),
+                                      ),
+                                      if (isStarred) ...[
+                                        const SizedBox(width: 8),
+                                        Icon(
+                                          Icons.star_rounded,
+                                          size: 16,
+                                          color: isMe
+                                              ? const Color(0xFFFFE082)
+                                              : const Color(0xFFFFB300),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  if (reactions.isNotEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    _buildReactionSummary(
+                                      reactions: reactions,
+                                      isMe: isMe,
+                                    ),
+                                  ],
+                                  const SizedBox(height: 8),
                                   Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(
-                                        Icons.forward_rounded,
-                                        size: 14,
-                                        color: isMe
-                                            ? Colors.white70
-                                            : const Color(0xFF667085),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Flexible(
-                                        child: Text(
-                                          originalSenderName.isNotEmpty
-                                              ? 'Forwarded from $originalSenderName'
-                                              : 'Forwarded',
+                                      if (data['editedAt'] != null) ...[
+                                        Text(
+                                          'edited',
                                           style: TextStyle(
                                             fontSize: 11.5,
-                                            fontWeight: FontWeight.w600,
                                             color: isMe
                                                 ? Colors.white70
                                                 : const Color(0xFF667085),
                                           ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                ],
-                                if (replyToText.isNotEmpty)
-                                  _buildReplyPreview(
-                                    isMe: isMe,
-                                    replyToSenderName: replyToSenderName,
-                                    replyToText: replyToText,
-                                  ),
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        text,
-                                        style: TextStyle(
-                                          fontSize: 15,
-                                          height: 1.5,
-                                          fontStyle: deletedForEveryone
-                                              ? FontStyle.italic
-                                              : FontStyle.normal,
-                                          color: isMe
-                                              ? Colors.white
-                                              : const Color(0xFF1C2434),
-                                        ),
-                                      ),
-                                    ),
-                                    if (isStarred) ...[
-                                      const SizedBox(width: 8),
-                                      Icon(
-                                        Icons.star_rounded,
-                                        size: 16,
-                                        color: isMe
-                                            ? const Color(0xFFFFE082)
-                                            : const Color(0xFFFFB300),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                                if (reactions.isNotEmpty) ...[
-                                  const SizedBox(height: 8),
-                                  _buildReactionSummary(
-                                    reactions: reactions,
-                                    isMe: isMe,
-                                  ),
-                                ],
-                                const SizedBox(height: 8),
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (data['editedAt'] != null) ...[
+                                        const SizedBox(width: 8),
+                                      ],
                                       Text(
-                                        'edited',
+                                        formatTimestamp(createdAt),
                                         style: TextStyle(
-                                          fontSize: 11.5,
+                                          fontSize: 12,
                                           color: isMe
                                               ? Colors.white70
                                               : const Color(0xFF667085),
                                         ),
                                       ),
-                                      const SizedBox(width: 8),
                                     ],
-                                    Text(
-                                      formatTimestamp(createdAt),
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: isMe
-                                            ? Colors.white70
-                                            : const Color(0xFF667085),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),

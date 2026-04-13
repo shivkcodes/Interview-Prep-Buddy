@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../ai_backend_service.dart';
 
 class AddQuestionScreen extends StatefulWidget {
   const AddQuestionScreen({super.key});
@@ -15,6 +17,59 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
 
   String selectedType = 'HR';
   bool saving = false;
+  bool loadingKeywordSuggestions = false;
+  List<String> suggestedKeywords = [];
+  String keywordReason = '';
+  Timer? debounce;
+
+  Future<void> fetchKeywordSuggestions(String question) async {
+    final trimmed = question.trim();
+    if (trimmed.length < 15) {
+      if (mounted) {
+        setState(() {
+          suggestedKeywords = [];
+          keywordReason = '';
+          loadingKeywordSuggestions = false;
+        });
+      }
+      return;
+    }
+
+    setState(() {
+      loadingKeywordSuggestions = true;
+    });
+
+    try {
+      final result = await AIBackendService.suggestKeywords(
+        question: trimmed,
+        type: selectedType,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        suggestedKeywords = List<String>.from(
+          result['suggested_keywords'] ?? [],
+        );
+        keywordReason = (result['reason'] ?? '').toString();
+        loadingKeywordSuggestions = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loadingKeywordSuggestions = false;
+        suggestedKeywords = [];
+        keywordReason = 'AI keyword suggestions abhi available nahi hain.';
+      });
+    }
+  }
+
+  void onQuestionChanged(String value) {
+    debounce?.cancel();
+    debounce = Timer(const Duration(milliseconds: 1200), () {
+      fetchKeywordSuggestions(value);
+    });
+  }
 
   Future<String?> saveQuestion({bool openMockAfterSave = false}) async {
     final question = questionController.text.trim();
@@ -52,6 +107,8 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
             'createdBy': currentUser?.email ?? 'user',
             'createdByUid': currentUser?.uid ?? '',
             'isPinned': false,
+            'aiSuggestedKeywords': suggestedKeywords,
+            'aiKeywordReason': keywordReason,
           });
 
       if (!mounted) return null;
@@ -82,6 +139,7 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
 
   @override
   void dispose() {
+    debounce?.cancel();
     questionController.dispose();
     keywordsController.dispose();
     super.dispose();
@@ -135,9 +193,97 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
             ),
           ),
           const SizedBox(height: 18),
+          if (loadingKeywordSuggestions)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: LinearProgressIndicator(),
+            ),
+
+          if (suggestedKeywords.isNotEmpty) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFD),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE3EAF4)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'AI Suggested Keywords',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF2346A0),
+                    ),
+                  ),
+                  if (keywordReason.trim().isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      keywordReason,
+                      style: const TextStyle(
+                        color: Color(0xFF667085),
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: suggestedKeywords.map((keyword) {
+                      return GestureDetector(
+                        onTap: () {
+                          final existing = keywordsController.text
+                              .split(',')
+                              .map((e) => e.trim())
+                              .where((e) => e.isNotEmpty)
+                              .toList();
+
+                          if (!existing.contains(keyword)) {
+                            existing.add(keyword);
+                            setState(() {
+                              keywordsController.text = existing.join(', ');
+                              keywordsController.selection =
+                                  TextSelection.fromPosition(
+                                    TextPosition(
+                                      offset: keywordsController.text.length,
+                                    ),
+                                  );
+                            });
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEAF1FF),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: const Color(0xFFC9D9FF)),
+                          ),
+                          child: Text(
+                            keyword,
+                            style: const TextStyle(
+                              color: Color(0xFF2346A0),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           TextField(
             controller: questionController,
             maxLines: 3,
+            onChanged: onQuestionChanged,
             decoration: InputDecoration(
               labelText: 'Question',
               hintText: 'Example: Tell me about yourself',
@@ -169,6 +315,10 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
               setState(() {
                 selectedType = value!;
               });
+
+              if (questionController.text.trim().isNotEmpty) {
+                fetchKeywordSuggestions(questionController.text);
+              }
             },
           ),
           const SizedBox(height: 16),
