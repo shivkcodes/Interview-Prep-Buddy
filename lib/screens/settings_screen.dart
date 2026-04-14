@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../app_settings.dart';
 import '../app_text.dart';
 import '../app_lock_service.dart';
+import '../admin_config.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -11,6 +14,8 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  String appVersion = '';
+  String buildNumber = '';
   String _themeLabel(ThemeMode mode) {
     switch (mode) {
       case ThemeMode.light:
@@ -30,6 +35,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   String _languageLabel(String code) {
     return AppSettings.languageLabel(code);
+  }
+
+  Future<void> loadAppVersion() async {
+    final info = await PackageInfo.fromPlatform();
+
+    if (!mounted) return;
+
+    setState(() {
+      appVersion = info.version;
+      buildNumber = info.buildNumber;
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    loadAppVersion();
   }
 
   Future<void> _showPinSetupSheet({bool isChange = false}) async {
@@ -207,6 +229,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final isAdmin = AdminConfig.isAdminEmail(user?.email);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -220,6 +245,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
         children: [
+          if (isAdmin)
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F7EE),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFB7E4C7)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.verified_user_rounded, color: Color(0xFF1B8A5A)),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'You are logged in as Admin',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1B5E3C),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           Text(
             AppText.value(en: 'Settings', hi: 'सेटिंग्स', mix: 'Settings'),
             style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
@@ -567,17 +618,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ],
             ),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'About Prep Buddy',
+                const Text(
+                  'Developer Details',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 10),
+                const Text(
+                  'Developer: Shivam Karmakar',
+                  style: TextStyle(
+                    color: Color(0xFF1C2434),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'App: Interview Prep Buddy',
+                  style: TextStyle(color: Color(0xFF667085)),
+                ),
+                const SizedBox(height: 6),
                 Text(
-                  'Prep Buddy is designed to help students practice interview questions, improve communication, review saved answers, connect with peers, and track performance in one place.',
-                  style: TextStyle(color: Color(0xFF667085), height: 1.6),
+                  'Version: ${appVersion.isEmpty ? '--' : appVersion} (${buildNumber.isEmpty ? '--' : buildNumber})',
+                  style: const TextStyle(color: Color(0xFF667085)),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Support: Use Help section to report bugs, issues, or suggestions.',
+                  style: TextStyle(color: Color(0xFF667085), height: 1.5),
+                ),
+                const Text(
+                  'About this App: Prep Buddy is designed to help students practice interview questions, improve communication, review saved answers, connect with peers, and track performance in one place.',
+                  style: TextStyle(color: Color(0xFF667085), height: 1.5),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Important: Please avoid sharing sensitive personal data in support messages.',
+                  style: TextStyle(
+                    color: Color(0xFFB54708),
+                    fontWeight: FontWeight.w600,
+                    height: 1.4,
+                  ),
                 ),
               ],
             ),

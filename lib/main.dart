@@ -21,6 +21,9 @@ import 'app_lock_service.dart';
 import 'screens/app_lock_screen.dart';
 import 'screens/notification_screen.dart';
 import 'ai_backend_service.dart';
+import 'screens/request_help_screen.dart';
+import 'screens/admin_panel_screen.dart';
+import 'admin_config.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -490,7 +493,7 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   int selectedIndex = 0;
 
   final List<Attempt> attempts = [];
@@ -499,6 +502,34 @@ class _MainScreenState extends State<MainScreen> {
   int mockSelectionVersion = 0;
   String pendingQuestionSearch = '';
   int questionSearchVersion = 0;
+
+  Future<void> _updateOnlineStatus(bool isOnline) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    await FirebaseFirestore.instance.collection('profiles').doc(user.uid).set({
+      'isOnline': isOnline,
+      'lastSeenAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _updateOnlineStatus(true);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _updateOnlineStatus(true);
+    } else if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _updateOnlineStatus(false);
+    }
+  }
 
   void addAttempt(Attempt attempt) {
     setState(() {
@@ -578,6 +609,8 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _updateOnlineStatus(false);
     super.dispose();
   }
 
@@ -624,6 +657,7 @@ class _MainScreenState extends State<MainScreen> {
                     onTap: () {
                       showModalBottomSheet(
                         context: context,
+                        isScrollControlled: true,
                         backgroundColor: Colors.white,
                         shape: const RoundedRectangleBorder(
                           borderRadius: BorderRadius.vertical(
@@ -634,6 +668,7 @@ class _MainScreenState extends State<MainScreen> {
                           final userName = currentUser?.displayName ?? 'User';
                           final userEmail = currentUser?.email ?? '';
                           final userPhoto = currentUser?.photoURL;
+                          final isAdmin = AdminConfig.isAdminEmail(userEmail);
                           final initial = userName.isNotEmpty
                               ? userName.trim().substring(0, 1).toUpperCase()
                               : 'U';
@@ -646,141 +681,248 @@ class _MainScreenState extends State<MainScreen> {
                                 20,
                                 24,
                               ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    width: 42,
-                                    height: 4,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFD0D5DD),
-                                      borderRadius: BorderRadius.circular(999),
+                              child: SingleChildScrollView(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 42,
+                                      height: 4,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFD0D5DD),
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 18),
-                                  CircleAvatar(
-                                    radius: 34,
-                                    backgroundColor: const Color(0xFFE8EEFF),
-                                    backgroundImage: userPhoto != null
-                                        ? NetworkImage(userPhoto)
-                                        : null,
-                                    child: userPhoto == null
-                                        ? Text(
-                                            initial,
-                                            style: const TextStyle(
-                                              fontSize: 24,
-                                              fontWeight: FontWeight.w700,
-                                              color: Color(0xFF2346A0),
+                                    const SizedBox(height: 18),
+                                    CircleAvatar(
+                                      radius: 34,
+                                      backgroundColor: const Color(0xFFE8EEFF),
+                                      backgroundImage: userPhoto != null
+                                          ? NetworkImage(userPhoto)
+                                          : null,
+                                      child: userPhoto == null
+                                          ? Text(
+                                              initial,
+                                              style: const TextStyle(
+                                                fontSize: 24,
+                                                fontWeight: FontWeight.w700,
+                                                color: Color(0xFF2346A0),
+                                              ),
+                                            )
+                                          : null,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      userName,
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF1C2434),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      userEmail,
+                                      style: const TextStyle(
+                                        color: Color(0xFF667085),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 20),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: OutlinedButton.icon(
+                                        onPressed: () {
+                                          Navigator.pop(context);
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  const ProfileScreen(),
                                             ),
-                                          )
-                                        : null,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    userName,
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFF1C2434),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    userEmail,
-                                    style: const TextStyle(
-                                      color: Color(0xFF667085),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: OutlinedButton.icon(
-                                      onPressed: () {
-                                        Navigator.pop(context);
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) =>
-                                                const ProfileScreen(),
+                                          );
+                                        },
+                                        icon: const Icon(Icons.person_outline),
+                                        label: const Text('Open Profile'),
+                                        style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 14,
                                           ),
-                                        );
-                                      },
-                                      icon: const Icon(Icons.person_outline),
-                                      label: const Text('Open Profile'),
-                                      style: OutlinedButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 14,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            16,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: OutlinedButton.icon(
-                                      onPressed: () {
-                                        Navigator.pop(context);
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) =>
-                                                const SettingsScreen(),
+                                    const SizedBox(height: 10),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: OutlinedButton.icon(
+                                        onPressed: () {
+                                          Navigator.pop(context);
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  const SettingsScreen(),
+                                            ),
+                                          );
+                                        },
+                                        icon: const Icon(
+                                          Icons.settings_outlined,
+                                        ),
+                                        label: const Text('Settings'),
+                                        style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 14,
                                           ),
-                                        );
-                                      },
-                                      icon: const Icon(Icons.settings_outlined),
-                                      label: const Text('Settings'),
-                                      style: OutlinedButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 14,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            16,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: ElevatedButton.icon(
-                                      onPressed: () async {
-                                        Navigator.pop(context);
-                                        await FirebaseAuth.instance.signOut();
-                                        if (!context.mounted) return;
-                                        Navigator.of(
-                                          context,
-                                        ).pushNamedAndRemoveUntil(
-                                          '/',
-                                          (route) => false,
-                                        );
-                                      },
-                                      icon: const Icon(Icons.logout),
-                                      label: const Text('Sign Out'),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(
-                                          0xFFE4583E,
-                                        ),
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 14,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            16,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ],
+                                    if (isAdmin) ...[
+                                      const SizedBox(height: 10),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: ElevatedButton.icon(
+                                          onPressed: () {
+                                            Navigator.pop(context);
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    const AdminPanelScreen(),
+                                              ),
+                                            );
+                                          },
+                                          icon: const Icon(
+                                            Icons.admin_panel_settings_rounded,
+                                          ),
+                                          label: const Text('Admin Panel'),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(
+                                              0xFF2346A0,
+                                            ),
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 14,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                    if (!isAdmin) ...[
+                                      const SizedBox(height: 10),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: OutlinedButton.icon(
+                                          onPressed: () {
+                                            Navigator.pop(context);
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    const RequestHelpScreen(
+                                                      mode: 'request',
+                                                    ),
+                                              ),
+                                            );
+                                          },
+                                          icon: const Icon(
+                                            Icons.campaign_outlined,
+                                          ),
+                                          label: const Text(
+                                            'Request Something',
+                                          ),
+                                          style: OutlinedButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 14,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: OutlinedButton.icon(
+                                          onPressed: () {
+                                            Navigator.pop(context);
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    const RequestHelpScreen(
+                                                      mode: 'help',
+                                                    ),
+                                              ),
+                                            );
+                                          },
+                                          icon: const Icon(
+                                            Icons.help_outline_rounded,
+                                          ),
+                                          label: const Text('Help'),
+                                          style: OutlinedButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 14,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: ElevatedButton.icon(
+                                          onPressed: () async {
+                                            Navigator.pop(context);
+                                            await FirebaseAuth.instance
+                                                .signOut();
+                                            if (!context.mounted) return;
+                                            Navigator.of(
+                                              context,
+                                            ).pushNamedAndRemoveUntil(
+                                              '/',
+                                              (route) => false,
+                                            );
+                                          },
+                                          icon: const Icon(Icons.logout),
+                                          label: const Text('Sign Out'),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(
+                                              0xFFE4583E,
+                                            ),
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 14,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
                               ),
                             ),
                           );
@@ -840,6 +982,7 @@ class _MainScreenState extends State<MainScreen> {
             "createdBy": data["createdBy"] ?? "",
             "createdByUid": data["createdByUid"] ?? "",
             "isPinned": data["isPinned"] ?? false,
+            "isDeleted": data["isDeleted"] == true,
             "createdAt": data["createdAt"],
           };
         }).toList();
@@ -904,6 +1047,7 @@ class _MainScreenState extends State<MainScreen> {
                         onTap: () {
                           showModalBottomSheet(
                             context: context,
+                            isScrollControlled: true,
                             backgroundColor: Colors.white,
                             shape: const RoundedRectangleBorder(
                               borderRadius: BorderRadius.vertical(
@@ -915,6 +1059,9 @@ class _MainScreenState extends State<MainScreen> {
                                   currentUser?.displayName ?? 'User';
                               final userEmail = currentUser?.email ?? '';
                               final userPhoto = currentUser?.photoURL;
+                              final isAdmin = AdminConfig.isAdminEmail(
+                                userEmail,
+                              );
                               final initial = userName.isNotEmpty
                                   ? userName
                                         .trim()
@@ -930,147 +1077,258 @@ class _MainScreenState extends State<MainScreen> {
                                     20,
                                     24,
                                   ),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Container(
-                                        width: 42,
-                                        height: 4,
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFD0D5DD),
-                                          borderRadius: BorderRadius.circular(
-                                            999,
+                                  child: SingleChildScrollView(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          width: 42,
+                                          height: 4,
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFD0D5DD),
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      const SizedBox(height: 18),
-                                      CircleAvatar(
-                                        radius: 34,
-                                        backgroundColor: const Color(
-                                          0xFFE8EEFF,
+                                        const SizedBox(height: 18),
+                                        CircleAvatar(
+                                          radius: 34,
+                                          backgroundColor: const Color(
+                                            0xFFE8EEFF,
+                                          ),
+                                          backgroundImage: userPhoto != null
+                                              ? NetworkImage(userPhoto)
+                                              : null,
+                                          child: userPhoto == null
+                                              ? Text(
+                                                  initial,
+                                                  style: const TextStyle(
+                                                    fontSize: 24,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: Color(0xFF2346A0),
+                                                  ),
+                                                )
+                                              : null,
                                         ),
-                                        backgroundImage: userPhoto != null
-                                            ? NetworkImage(userPhoto)
-                                            : null,
-                                        child: userPhoto == null
-                                            ? Text(
-                                                initial,
-                                                style: const TextStyle(
-                                                  fontSize: 24,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: Color(0xFF2346A0),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          userName,
+                                          style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF1C2434),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          userEmail,
+                                          style: const TextStyle(
+                                            color: Color(0xFF667085),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 20),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: OutlinedButton.icon(
+                                            onPressed: () {
+                                              Navigator.pop(context);
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (_) =>
+                                                      const ProfileScreen(),
                                                 ),
-                                              )
-                                            : null,
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Text(
-                                        userName,
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w700,
-                                          color: Color(0xFF1C2434),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        userEmail,
-                                        style: const TextStyle(
-                                          color: Color(0xFF667085),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 20),
-                                      SizedBox(
-                                        width: double.infinity,
-                                        child: OutlinedButton.icon(
-                                          onPressed: () {
-                                            Navigator.pop(context);
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    const ProfileScreen(),
+                                              );
+                                            },
+                                            icon: const Icon(
+                                              Icons.person_outline,
+                                            ),
+                                            label: const Text('Open Profile'),
+                                            style: OutlinedButton.styleFrom(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 14,
+                                                  ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
                                               ),
-                                            );
-                                          },
-                                          icon: const Icon(
-                                            Icons.person_outline,
-                                          ),
-                                          label: const Text('Open Profile'),
-                                          style: OutlinedButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 14,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(16),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      SizedBox(
-                                        width: double.infinity,
-                                        child: OutlinedButton.icon(
-                                          onPressed: () {
-                                            Navigator.pop(context);
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    const SettingsScreen(),
+                                        const SizedBox(height: 10),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: OutlinedButton.icon(
+                                            onPressed: () {
+                                              Navigator.pop(context);
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (_) =>
+                                                      const SettingsScreen(),
+                                                ),
+                                              );
+                                            },
+                                            icon: const Icon(
+                                              Icons.settings_outlined,
+                                            ),
+                                            label: const Text('Settings'),
+                                            style: OutlinedButton.styleFrom(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 14,
+                                                  ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
                                               ),
-                                            );
-                                          },
-                                          icon: const Icon(
-                                            Icons.settings_outlined,
-                                          ),
-                                          label: const Text('Settings'),
-                                          style: OutlinedButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 14,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(16),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      SizedBox(
-                                        width: double.infinity,
-                                        child: ElevatedButton.icon(
-                                          onPressed: () async {
-                                            Navigator.pop(context);
-                                            await FirebaseAuth.instance
-                                                .signOut();
-                                            if (!context.mounted) return;
-                                            Navigator.of(
-                                              context,
-                                            ).pushNamedAndRemoveUntil(
-                                              '/',
-                                              (route) => false,
-                                            );
-                                          },
-                                          icon: const Icon(Icons.logout),
-                                          label: const Text('Sign Out'),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(
-                                              0xFFE4583E,
+                                        if (isAdmin) ...[
+                                          const SizedBox(height: 10),
+                                          SizedBox(
+                                            width: double.infinity,
+                                            child: ElevatedButton.icon(
+                                              onPressed: () {
+                                                Navigator.pop(context);
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (_) =>
+                                                        const AdminPanelScreen(),
+                                                  ),
+                                                );
+                                              },
+                                              icon: const Icon(
+                                                Icons
+                                                    .admin_panel_settings_rounded,
+                                              ),
+                                              label: const Text('Admin Panel'),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: const Color(
+                                                  0xFF2346A0,
+                                                ),
+                                                foregroundColor: Colors.white,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 14,
+                                                    ),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(16),
+                                                ),
+                                              ),
                                             ),
-                                            foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 14,
+                                          ),
+                                        ],
+                                        if (!isAdmin) ...[
+                                          const SizedBox(height: 10),
+                                          SizedBox(
+                                            width: double.infinity,
+                                            child: OutlinedButton.icon(
+                                              onPressed: () {
+                                                Navigator.pop(context);
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (_) =>
+                                                        const RequestHelpScreen(
+                                                          mode: 'request',
+                                                        ),
+                                                  ),
+                                                );
+                                              },
+                                              icon: const Icon(
+                                                Icons.campaign_outlined,
+                                              ),
+                                              label: const Text(
+                                                'Request Something',
+                                              ),
+                                              style: OutlinedButton.styleFrom(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 14,
+                                                    ),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(16),
+                                                ),
+                                              ),
                                             ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(16),
+                                          ),
+                                          const SizedBox(height: 10),
+                                          SizedBox(
+                                            width: double.infinity,
+                                            child: OutlinedButton.icon(
+                                              onPressed: () {
+                                                Navigator.pop(context);
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (_) =>
+                                                        const RequestHelpScreen(
+                                                          mode: 'help',
+                                                        ),
+                                                  ),
+                                                );
+                                              },
+                                              icon: const Icon(
+                                                Icons.help_outline_rounded,
+                                              ),
+                                              label: const Text('Help'),
+                                              style: OutlinedButton.styleFrom(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 14,
+                                                    ),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(16),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+
+                                        const SizedBox(height: 10),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton.icon(
+                                            onPressed: () async {
+                                              Navigator.pop(context);
+                                              await FirebaseAuth.instance
+                                                  .signOut();
+                                              if (!context.mounted) return;
+                                              Navigator.of(
+                                                context,
+                                              ).pushNamedAndRemoveUntil(
+                                                '/',
+                                                (route) => false,
+                                              );
+                                            },
+                                            icon: const Icon(Icons.logout),
+                                            label: const Text('Sign Out'),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: const Color(
+                                                0xFFE4583E,
+                                              ),
+                                              foregroundColor: Colors.white,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 14,
+                                                  ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                              ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                 ),
                               );
@@ -2445,13 +2703,18 @@ class _QuestionBankScreenState extends State<QuestionBankScreen> {
         final isMine =
             item['createdByUid'] == currentUser?.uid ||
             item['createdBy'] == currentUser?.email;
-        return isMine && matchesQuestionSearch(item);
+        final isDeleted = item['isDeleted'] == true;
+        return !isDeleted && isMine && matchesQuestionSearch(item);
       }).toList(),
     );
 
     final cloudQuestions = sortQuestions(
-      widget.questions.where(matchesQuestionSearch).toList(),
+      widget.questions.where((item) {
+        final isDeleted = item['isDeleted'] == true;
+        return !isDeleted && matchesQuestionSearch(item);
+      }).toList(),
     );
+
     final visibleQuestions = searchQuery.trim().isNotEmpty
         ? cloudQuestions
         : (selectedSection == 'my' ? myQuestions : cloudQuestions);

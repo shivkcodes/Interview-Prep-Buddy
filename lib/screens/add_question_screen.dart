@@ -15,12 +15,35 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
   final TextEditingController questionController = TextEditingController();
   final TextEditingController keywordsController = TextEditingController();
 
-  String selectedType = 'HR';
+  String? selectedType;
   bool saving = false;
   bool loadingKeywordSuggestions = false;
   List<String> suggestedKeywords = [];
   String keywordReason = '';
   Timer? debounce;
+  @override
+  void initState() {
+    super.initState();
+    loadInitialQuestionType();
+  }
+
+  Future<void> loadInitialQuestionType() async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('question_types')
+        .where('active', isEqualTo: true)
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isEmpty) return;
+
+    final firstType = (snapshot.docs.first.data()['name'] ?? '').toString();
+
+    if (!mounted) return;
+
+    setState(() {
+      selectedType = firstType;
+    });
+  }
 
   Future<void> fetchKeywordSuggestions(String question) async {
     final trimmed = question.trim();
@@ -42,7 +65,7 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
     try {
       final result = await AIBackendService.suggestKeywords(
         question: trimmed,
-        type: selectedType,
+        type: selectedType ?? 'General',
       );
 
       if (!mounted) return;
@@ -101,7 +124,7 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
           .collection('questions')
           .add({
             'question': question,
-            'type': selectedType,
+            'type': selectedType ?? 'General',
             'keywords': keywords,
             'createdAt': FieldValue.serverTimestamp(),
             'createdBy': currentUser?.email ?? 'user',
@@ -296,29 +319,70 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            value: selectedType,
-            decoration: InputDecoration(
-              labelText: 'Question Type',
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
-              ),
-            ),
-            items: const [
-              DropdownMenuItem(value: 'HR', child: Text('HR')),
-              DropdownMenuItem(value: 'Technical', child: Text('Technical')),
-            ],
-            onChanged: (value) {
-              setState(() {
-                selectedType = value!;
-              });
-
-              if (questionController.text.trim().isNotEmpty) {
-                fetchKeywordSuggestions(questionController.text);
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('question_types')
+                .where('active', isEqualTo: true)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
               }
+
+              final docs = snapshot.data!.docs;
+
+              final typeNames = docs
+                  .map(
+                    (doc) =>
+                        (doc.data() as Map<String, dynamic>)['name'].toString(),
+                  )
+                  .toList();
+
+              if (typeNames.isEmpty) {
+                return const Text('No question types available');
+              }
+
+              final currentValue =
+                  selectedType != null && typeNames.contains(selectedType)
+                  ? selectedType
+                  : typeNames.first;
+
+              if (selectedType != currentValue) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) return;
+                  setState(() {
+                    selectedType = currentValue;
+                  });
+                });
+              }
+
+              return DropdownButtonFormField<String>(
+                value: currentValue,
+                decoration: InputDecoration(
+                  labelText: 'Question Type',
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                items: typeNames.map((type) {
+                  return DropdownMenuItem<String>(
+                    value: type,
+                    child: Text(type),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() {
+                    selectedType = value;
+                  });
+                  if (questionController.text.trim().isNotEmpty) {
+                    fetchKeywordSuggestions(questionController.text);
+                  }
+                },
+              );
             },
           ),
           const SizedBox(height: 16),

@@ -16,12 +16,12 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/logo/logo.png"
+  image_path: "assets/logo/logo_new.png"
 
 flutter:
   uses-material-design: true
   assets:
-    - assets/logo/logo.png
+    - assets/logo/logo_new.png
     - assets/images/
 
 dependencies:
@@ -45,3 +45,4 @@ dependencies:
   image_picker: ^1.1.2
   local_auth: ^2.3.0
   flutter_slidable: ^3.1.1
+  package_info_plus: ^8.0.0
