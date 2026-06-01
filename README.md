@@ -33,6 +33,22 @@ The project was developed as a major academic and practical learning project foc
 
 ---
 
+---
+
+# 📲 Download App
+
+<div align="center">
+
+### 🚀 Download Interview Prep Buddy
+
+[![Download App](https://img.shields.io/badge/Download-Indus_App_Store-success?style=for-the-badge)](https://indusapp.store/m5i3o2pb)
+
+**Direct Download Link:** https://indusapp.store/m5i3o2pb
+
+</div>
+
+---
+
 # 🚀 Features
 
 ## 🔐 Authentication System
@@ -314,6 +330,14 @@ Create a Pull Request
 This project is created for educational and learning purposes.
 
 ---
+
+# 🚀 Deployment
+
+The application was optimized, tested, and deployed on:
+
+- Indus App Store
+
+📲 App Download Link: https://indusapp.store/m5i3o2pb
 
 # ⭐ Support
 
